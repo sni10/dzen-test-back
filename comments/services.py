@@ -102,7 +102,8 @@ class CommentService:
         comment.set_parent(parent)
         with transaction.atomic():
             comment.save()
-            if parent is not None:
+            # A shadowed reply is not counted: the counter must not reveal hidden comments to other people
+            if parent is not None and not comment.is_shadowed:
                 Comment.objects.filter(pk=parent.pk).update(replies_count=F('replies_count') + 1)
         return comment
 
