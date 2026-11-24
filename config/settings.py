@@ -47,6 +47,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'common.guest.GuestKeyMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -119,6 +120,7 @@ MEDIA_ROOT = BASE_DIR / ENV.media.root
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = ENV.cors.allowed_origins
+CORS_ALLOW_CREDENTIALS = True  # the guest_key cookie travels with fetch(..., {credentials: 'include'})
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -129,6 +131,7 @@ REST_FRAMEWORK = {
     # Counters live in the Redis cache, shared by all workers
     'DEFAULT_THROTTLE_RATES': {
         'captcha': '30/min',
+        'comment_create': '10/min',
     },
 }
 
