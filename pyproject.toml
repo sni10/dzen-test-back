@@ -9,6 +9,7 @@ dependencies = [
     "djangorestframework>=3.18.3",
     "drf-spectacular>=0.30.0",
     "mysqlclient>=2.3.2",
+    "nh3>=0.3.8",
     "pydantic-settings>=2.16.3",
     "redis>=8.2.0",
     "uvicorn>=0.54.0",
@@ -43,5 +44,6 @@ skip_covered = true
 [dependency-groups]
 dev = [
     "coverage>=7.17.5",
+    "djangorestframework-stubs>=3.18.2",
     "unittest-xml-reporting>=4.0.0",
 ]
