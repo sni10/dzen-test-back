@@ -3,8 +3,8 @@
 Backend for the "Comments" SPA test assignment: tree comments with CAPTCHA, file attachments,
 live updates over WebSocket, moderation, search.
 
-Stack: Python 3.14, Django 6, DRF, Strawberry GraphQL, MySQL 8.4, Redis, Celery + RabbitMQ, Caddy, Docker.
-Coming with the next features: Channels (WebSocket), Elasticsearch, JWT.
+Stack: Python 3.14, Django 6, DRF, Strawberry GraphQL, Channels (WebSocket), MySQL 8.4, Redis,
+Celery + RabbitMQ, Caddy, Docker. Coming with the next features: Elasticsearch, JWT.
 Frontend: [dzen-test-front](https://github.com/sni10/dzen-test-front) (Vue 3).
 
 > Work in progress.
@@ -27,7 +27,8 @@ Open **http://localhost:8080**. Caddy serves the SPA and the API on one origin, 
 |---|---|
 | `/graphql` | GraphQL (reading comments; GraphiQL in a browser) |
 | `/api/...` | REST: CAPTCHA, posting comments, preview, health; Swagger at `/api/docs/` |
-| `/ws/...`, `/media/...`, `/admin/`, `/static/...` | Django |
+| `/ws/comments/` | WebSocket: `comment.created`, `attachment.updated` pushed to every open page |
+| `/media/...`, `/admin/`, `/static/...` | Django |
 | everything else | the SPA (nginx from dzen-test-front) |
 
 Django is also published on http://localhost:8000 (for the front's `npm run dev` proxy).
