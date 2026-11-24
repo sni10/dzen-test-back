@@ -34,7 +34,7 @@ class FakeCaptcha:
 class CommentServiceTests(TestCase):
     def setUp(self):
         self.captcha = FakeCaptcha()
-        self.service = CommentService(CommentMarkup(), self.captcha.service)
+        self.service = CommentService(CommentMarkup(), self.captcha.service, process_attachment=lambda pk: None)
         self.guest = Author(guest_key=uuid.uuid4(), ip='203.0.113.7', user_agent='Test/1.0')
 
     def data(self, **overrides) -> NewComment:

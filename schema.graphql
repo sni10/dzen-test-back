@@ -1,3 +1,22 @@
+type Attachment {
+  id: ID!
+
+  """image (fitted into 320x240) or text (TXT up to 100 KB)"""
+  kind: String!
+
+  """Relative URL on the same origin (/media/...)"""
+  url: String!
+  originalName: String!
+
+  """Bytes of the stored file"""
+  size: Int!
+  width: Int
+  height: Int
+
+  """processing (image being resized), ready or failed"""
+  status: String!
+}
+
 type Comment {
   id: ID!
   userName: String!
@@ -21,6 +40,9 @@ type Comment {
 
   """The top-level comment of the thread"""
   rootId: ID
+
+  """Files attached to the comment (at most one at the moment)"""
+  attachments: [Attachment!]!
 
   """The comment this one replies to (for the quote); null for top-level"""
   parent: Comment
