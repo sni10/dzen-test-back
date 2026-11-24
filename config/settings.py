@@ -132,6 +132,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'captcha': '30/min',
         'comment_create': '10/min',
+        'comment_preview': '60/min',
     },
 }
 
