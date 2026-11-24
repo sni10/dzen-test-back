@@ -19,7 +19,7 @@ from comments.services import Author, CommentService, InvalidAttachment, NewComm
 from comments.tasks import process_attachment
 
 from .factories import make_comment
-from .test_create import FakeCaptcha
+from .test_create import FakeCaptcha, RecordingNotifier
 
 MEDIA_ROOT = tempfile.mkdtemp(prefix='dzen-test-media-')
 
@@ -163,7 +163,7 @@ class ServiceTests(MediaTestCase):
     def setUp(self):
         self.captcha = FakeCaptcha()
         self.queued = []
-        self.service = CommentService(CommentMarkup(), self.captcha.service, self.queued.append)
+        self.service = CommentService(CommentMarkup(), self.captcha.service, self.queued.append, RecordingNotifier())
 
     def create(self, attachment, **overrides):
         data = NewComment(user_name='Anonym', email='a@example.com', text='See the file',

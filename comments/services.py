@@ -11,6 +11,7 @@ from accounts.models import User
 from captcha.service import CaptchaService
 
 from .attachments import AttachmentRejected, CheckedUpload, inspect_upload
+from .live import Notifier
 from .markup import CommentMarkup, MarkupError
 from .models import Attachment, Comment
 from .viewer import Viewer
@@ -81,11 +82,16 @@ class Author:
 
 class CommentService:
     def __init__(
-        self, markup: CommentMarkup, captcha: CaptchaService, process_attachment: Callable[[int], None],
+        self,
+        markup: CommentMarkup,
+        captcha: CaptchaService,
+        process_attachment: Callable[[int], None],
+        notifier: Notifier,
     ):
         self.markup = markup
         self.captcha = captcha
         self.process_attachment = process_attachment  # queues background work (a Celery task)
+        self.notifier = notifier  # live updates over WebSocket
 
     def preview(self, text: str) -> str:
         """The text exactly as `create` would store it; nothing is saved and no CAPTCHA is spent."""
@@ -121,6 +127,7 @@ class CommentService:
                 attachment = self._attach(comment, data.attachment, checked)
                 if checked.needs_processing:
                     transaction.on_commit(lambda: self.process_attachment(attachment.pk))
+            transaction.on_commit(lambda: self.notifier.comment_created(comment))
         return comment
 
     @staticmethod
