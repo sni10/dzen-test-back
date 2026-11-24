@@ -1,6 +1,7 @@
 """All comment reads go through these named QuerySet methods (the ORM plays the repository role)."""
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q, Window
+from django.db.models.functions import RowNumber
 
 from .viewer import Viewer
 
@@ -32,6 +33,22 @@ class CommentQuerySet(models.QuerySet):
             raise ValueError(f'Unknown sort "{sort}", expected one of {sorted(SORT_OPTIONS)}')
         tie_breaker = '-id' if sort.startswith('-') else 'id'
         return self.order_by(sort, tie_breaker)
+
+    def replies_of(self, parent_ids, first: int, after: int | None = None):
+        """Up to `first` direct replies of each parent, oldest first, in ONE query (window function).
+
+        `after` is a reply id (ids grow with time): continue after it. Rows carry `position` (1-based).
+        """
+        rows = self.filter(parent_id__in=parent_ids)
+        if after is not None:
+            rows = rows.filter(pk__gt=after)
+        return rows.annotate(
+            position=Window(RowNumber(), partition_by=[F('parent_id')], order_by=F('id').asc()),
+        ).filter(position__lte=first).order_by('parent_id', 'id')
+
+    def since(self, last_id: int):
+        """Comments posted after `last_id`, oldest first: catching up after a WebSocket reconnect."""
+        return self.filter(pk__gt=last_id).order_by('id')
 
     def thread(self, root_id: int):
         """The whole branch under a top-level comment (root included), oldest first; the tree is built in code."""

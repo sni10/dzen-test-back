@@ -1,0 +1,72 @@
+type Comment {
+  id: ID!
+  userName: String!
+  email: String!
+  homePage: String!
+
+  """Sanitized HTML: only <a>, <code>, <i>, <strong>"""
+  text: String!
+
+  """Text hidden by a moderator; the card stays"""
+  isUfo: Boolean!
+  score: Int!
+
+  """Direct replies visible to everyone"""
+  repliesCount: Int!
+
+  """0 for a top-level comment"""
+  depth: Int!
+  createdAt: DateTime!
+  parentId: ID
+
+  """The top-level comment of the thread"""
+  rootId: ID
+
+  """The comment this one replies to (for the quote); null for top-level"""
+  parent: Comment
+
+  """Direct replies, oldest first; first <= 50, `after` = endCursor"""
+  replies(first: Int! = 10, after: ID = null): ReplyPage!
+}
+
+type CommentPage {
+  items: [Comment!]!
+  totalCount: Int!
+  page: Int!
+  pageSize: Int!
+  pageCount: Int!
+}
+
+"""Columns of the top-level table; the default is CREATED_AT_DESC (LIFO)"""
+enum CommentSort {
+  USER_NAME_ASC
+  USER_NAME_DESC
+  EMAIL_ASC
+  EMAIL_DESC
+  CREATED_AT_ASC
+  CREATED_AT_DESC
+}
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
+type Query {
+  """Top-level comments, 25 per page"""
+  comments(page: Int! = 1, sort: CommentSort! = CREATED_AT_DESC): CommentPage!
+
+  """One comment (a thread link); null if it does not exist or is hidden"""
+  comment(id: ID!): Comment
+
+  """
+  Comments posted after lastId, oldest first (after a WebSocket reconnect); limit <= 100
+  """
+  commentsSince(lastId: ID!, limit: Int! = 100): [Comment!]!
+}
+
+type ReplyPage {
+  items: [Comment!]!
+  hasMore: Boolean!
+
+  """Pass as `after` to load the next replies"""
+  endCursor: ID
+}

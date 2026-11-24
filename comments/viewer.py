@@ -17,3 +17,11 @@ class Viewer:
     @classmethod
     def anonymous(cls) -> 'Viewer':
         return cls()
+
+    @classmethod
+    def from_request(cls, request) -> 'Viewer':
+        """A signed-in user is identified by the account, anyone else by the guest cookie (GuestKeyMiddleware)."""
+        user = getattr(request, 'user', None)
+        if user is not None and user.is_authenticated:
+            return cls(user_id=user.pk, is_moderator=user.is_moderator)
+        return cls(guest_key=getattr(request, 'guest_key', None))

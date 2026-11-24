@@ -3,26 +3,34 @@
 Backend for the "Comments" SPA test assignment: tree comments with CAPTCHA, file attachments,
 live updates over WebSocket, moderation, search.
 
-Stack: Python 3.14, Django 6, DRF, MySQL 8.4, Redis, Docker. Coming with the next features: Channels (WebSocket),
-Celery + RabbitMQ, Elasticsearch, GraphQL, JWT.
+Stack: Python 3.14, Django 6, DRF, Strawberry GraphQL, MySQL 8.4, Redis, Caddy, Docker. Coming with the next
+features: Channels (WebSocket), Celery + RabbitMQ, Elasticsearch, JWT.
 Frontend: [dzen-test-front](https://github.com/sni10/dzen-test-front) (Vue 3).
 
 > Work in progress.
 
 ## Run locally (Docker)
 
+The compose file starts the whole application, the SPA included, so clone both repositories side by side:
+
 ```bash
 git clone https://github.com/sni10/dzen-test-back.git
+git clone https://github.com/sni10/dzen-test-front.git
 cd dzen-test-back
 cp .env.example .env
 docker compose up --build
 ```
 
-| What | URL |
+Open **http://localhost:8080**. Caddy serves the SPA and the API on one origin, exactly as in production:
+
+| Path | Goes to |
 |---|---|
-| Health check | http://localhost:8000/api/health/ |
-| API docs (Swagger) | http://localhost:8000/api/docs/ |
-| Django admin | http://localhost:8000/admin/ |
+| `/graphql` | GraphQL (reading comments; GraphiQL in a browser) |
+| `/api/...` | REST: CAPTCHA, posting comments, preview, health; Swagger at `/api/docs/` |
+| `/ws/...`, `/media/...`, `/admin/`, `/static/...` | Django |
+| everything else | the SPA (nginx from dzen-test-front) |
+
+Django is also published on http://localhost:8000 (for the front's `npm run dev` proxy).
 
 Administrator: `docker compose exec app python manage.py createsuperuser`.
 

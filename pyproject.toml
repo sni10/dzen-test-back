@@ -13,6 +13,7 @@ dependencies = [
     "pillow>=13.0.0",
     "pydantic-settings>=2.16.3",
     "redis>=8.2.0",
+    "strawberry-graphql>=0.341.3",
     "uvicorn>=0.54.0",
     "whitenoise>=6.12.0",
 ]
