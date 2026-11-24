@@ -3,6 +3,7 @@ from unittest import mock
 
 from asgiref.sync import sync_to_async
 from channels.testing import WebsocketCommunicator
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.test import TestCase, TransactionTestCase, override_settings
 
@@ -20,9 +21,6 @@ from config.asgi import application
 from .factories import make_comment
 from .test_attachments import MEDIA_ROOT, image_bytes
 from .test_create import FakeCaptcha, RecordingNotifier
-
-IN_MEMORY = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
-
 
 class GroupsTests(TestCase):
     def test_viewer_groups(self):
@@ -102,13 +100,26 @@ class TaskNotifiesTests(TestCase):
         self.assertEqual(notified.call_args.args[0].status, 'ready')
 
 
-@override_settings(CHANNEL_LAYERS=IN_MEMORY, ALLOWED_HOSTS=['testserver', 'localhost'])
+@override_settings(ALLOWED_HOSTS=['testserver', 'localhost'])
 class WebSocketTests(TransactionTestCase):
     """Through the real ASGI application: origin check, cookies, groups, events.
 
     TransactionTestCase: the consumer closes stale DB connections (database_sync_to_async), which would
-    break the per-test transaction of TestCase.
+    break the per-test transaction of TestCase. The real Redis channel layer, as in production: the
+    in-memory one is not thread-safe, and the notifier sends from another thread / event loop.
+    Each test gets its own Redis prefix, so no event of an earlier test can reach it.
     """
+
+    def setUp(self):
+        layers = {
+            'default': {
+                'BACKEND': 'channels_redis.core.RedisChannelLayer',
+                'CONFIG': {'hosts': [settings.REDIS_URL], 'prefix': f'test-{uuid.uuid4().hex}'},
+            },
+        }
+        isolated = self.settings(CHANNEL_LAYERS=layers)
+        isolated.enable()
+        self.addCleanup(isolated.disable)
 
     async def connect(self, origin='http://localhost', guest_key=None):
         headers = [(b'origin', origin.encode())]
