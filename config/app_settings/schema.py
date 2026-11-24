@@ -75,6 +75,21 @@ class RedisSettings(Section):
         return url
 
 
+class RabbitMQSettings(Section):
+    """Message broker for Celery (image processing now; search indexing and events later)."""
+
+    model_config = SettingsConfigDict(env_prefix='RABBITMQ_')
+
+    url: str = 'amqp://dzen:dzen@rabbitmq:5672//'
+
+    @field_validator('url')
+    @classmethod
+    def check_url(cls, url):
+        if urlsplit(url).scheme not in ('amqp', 'amqps'):
+            raise ValueError('must be amqp://user:password@host:port/vhost')
+        return url
+
+
 class CorsSettings(Section):
     model_config = SettingsConfigDict(env_prefix='CORS_')
 
@@ -116,6 +131,7 @@ class AppSettings(BaseModel):
     django: DjangoSettings
     db: DatabaseSettings
     redis: RedisSettings
+    rabbitmq: RabbitMQSettings
     cors: CorsSettings
     static: StaticSettings
     media: MediaSettings

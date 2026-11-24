@@ -3,8 +3,8 @@
 Backend for the "Comments" SPA test assignment: tree comments with CAPTCHA, file attachments,
 live updates over WebSocket, moderation, search.
 
-Stack: Python 3.14, Django 6, DRF, Strawberry GraphQL, MySQL 8.4, Redis, Caddy, Docker. Coming with the next
-features: Channels (WebSocket), Celery + RabbitMQ, Elasticsearch, JWT.
+Stack: Python 3.14, Django 6, DRF, Strawberry GraphQL, MySQL 8.4, Redis, Celery + RabbitMQ, Caddy, Docker.
+Coming with the next features: Channels (WebSocket), Elasticsearch, JWT.
 Frontend: [dzen-test-front](https://github.com/sni10/dzen-test-front) (Vue 3).
 
 > Work in progress.
@@ -32,6 +32,10 @@ Open **http://localhost:8080**. Caddy serves the SPA and the API on one origin, 
 
 Django is also published on http://localhost:8000 (for the front's `npm run dev` proxy).
 
+Background work runs in the `worker` container (Celery over RabbitMQ): an attached image is saved first
+(`status: processing`), then fitted into 320x240 and re-encoded (`ready`). RabbitMQ management UI:
+http://localhost:15673 (`dzen` / `dzen`).
+
 Administrator: `docker compose exec app python manage.py createsuperuser`.
 
 ## Development without the app container
@@ -40,10 +44,11 @@ MySQL and Redis in Docker, Django on the host ([uv](https://docs.astral.sh/uv/))
 
 ```bash
 cp .env.example .env
-docker compose up -d db redis
+docker compose up -d db redis rabbitmq
 uv sync
 uv run python manage.py migrate
 uv run python manage.py runserver
+uv run celery -A config worker --pool solo --loglevel info   # image processing (another terminal)
 uv run python manage.py test
 ```
 

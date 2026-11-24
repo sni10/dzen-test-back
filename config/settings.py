@@ -139,6 +139,12 @@ REST_FRAMEWORK = {
 CAPTCHA_LENGTH = 5
 CAPTCHA_TTL = 300  # seconds; each CAPTCHA is also single-use
 
+# Celery over RabbitMQ: background work (image resizing). Results are not needed, only side effects.
+CELERY_BROKER_URL = ENV.rabbitmq.url
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_TASK_ACKS_LATE = True  # a task survives a worker crash
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Comments API',
     'DESCRIPTION': 'Tree comments with CAPTCHA, attachments, live updates and moderation.',
