@@ -1,5 +1,7 @@
-# Development stack: `cp .env.example .env && docker compose up --build`.
-# API: http://localhost:8000/api/docs/  admin: http://localhost:8000/admin/
+# The whole application: `cp .env.example .env && docker compose up --build` -> http://localhost:8080
+# (dzen-test-front must be cloned next to this repository: the SPA is built from ../dzen-test-front).
+# Caddy serves the SPA and the API on one origin, as in production. Django is also published on :8000
+# for `npm run dev` in the front (its Vite proxy) and for the API docs.
 # Services for queues, search etc. are added together with the features that use them.
 services:
   db:
@@ -49,6 +51,23 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  front:
+    build: ../dzen-test-front
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      app:
+        condition: service_healthy
+      front:
         condition: service_healthy
     restart: unless-stopped
 
