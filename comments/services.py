@@ -76,17 +76,17 @@ class CommentService:
         self.markup = markup
         self.captcha = captcha
 
+    def preview(self, text: str) -> str:
+        """The text exactly as `create` would store it; nothing is saved and no CAPTCHA is spent."""
+        return self._clean(text)
+
     def create(self, data: NewComment, author: Author) -> Comment:
         """Validate markup and parent first, then spend the CAPTCHA, then save.
 
         The CAPTCHA is checked last so a typo in the text does not cost the user a new CAPTCHA.
         Moderators post without a CAPTCHA.
         """
-        try:
-            text = self.markup.clean(data.text)
-        except MarkupError as error:
-            raise InvalidMarkup(error) from error
-
+        text = self._clean(data.text)
         parent = self._parent(data.parent_id, author.viewer)
 
         if not author.viewer.is_moderator and not self.captcha.verify(data.captcha_key, data.captcha_answer):
@@ -105,6 +105,12 @@ class CommentService:
             if parent is not None:
                 Comment.objects.filter(pk=parent.pk).update(replies_count=F('replies_count') + 1)
         return comment
+
+    def _clean(self, text: str) -> str:
+        try:
+            return self.markup.clean(text)
+        except MarkupError as error:
+            raise InvalidMarkup(error) from error
 
     @staticmethod
     def _parent(parent_id: int | None, viewer: Viewer) -> Comment | None:

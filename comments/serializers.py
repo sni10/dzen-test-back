@@ -9,6 +9,22 @@ from .services import NewComment
 TEXT_MAX_LENGTH = 5000
 
 
+def text_field() -> serializers.CharField:
+    """The comment text: the same rules for posting and preview."""
+    return serializers.CharField(
+        trim_whitespace=True, validators=[MaxLengthValidator(TEXT_MAX_LENGTH)],
+        help_text='Allowed tags: <a href="" title="">, <code>, <i>, <strong>; every tag closed (XHTML)',
+    )
+
+
+class CommentPreviewSerializer(serializers.Serializer):
+    text = text_field()
+
+
+class CommentPreviewResultSerializer(serializers.Serializer):
+    text = serializers.CharField(help_text='Sanitized HTML exactly as it will be stored and shown')
+
+
 class CommentCreateSerializer(serializers.Serializer):
     """Field formats (the same rules as the frontend form). Markup, parent and CAPTCHA are checked by the service."""
 
@@ -21,10 +37,7 @@ class CommentCreateSerializer(serializers.Serializer):
         max_length=200, required=False, allow_blank=True, default='',
         help_text='http(s) URL, optional',
     )
-    text = serializers.CharField(
-        trim_whitespace=True, validators=[MaxLengthValidator(TEXT_MAX_LENGTH)],
-        help_text='Allowed tags: <a href="" title="">, <code>, <i>, <strong>; every tag closed (XHTML)',
-    )
+    text = text_field()
     parent = serializers.IntegerField(required=False, allow_null=True, default=None, min_value=1,
                                       help_text='Id of the comment this one replies to')
     captcha_key = serializers.CharField(max_length=64)
