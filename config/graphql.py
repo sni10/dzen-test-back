@@ -1,0 +1,59 @@
+"""The GraphQL endpoint: schema, limits against expensive queries, per-request context."""
+from dataclasses import dataclass
+
+import strawberry
+from asgiref.sync import sync_to_async
+from django.http import HttpRequest, HttpResponse
+from graphql import GraphQLError
+from strawberry.django.views import AsyncGraphQLView
+from strawberry.extensions import MaxAliasesLimiter, MaxTokensLimiter, QueryDepthLimiter
+
+from comments.graphql.loaders import CommentLoaders
+from comments.graphql.queries import CommentQuery
+from comments.viewer import Viewer
+
+MAX_DEPTH = 10  # comments > items > replies > items > replies ... ~4 levels of replies in one query
+MAX_ALIASES = 15
+MAX_TOKENS = 2000
+
+
+@dataclass
+class Context:
+    request: HttpRequest
+    response: HttpResponse
+    viewer: Viewer
+    loaders: CommentLoaders
+
+
+@strawberry.type
+class Query(CommentQuery):
+    pass
+
+
+class Schema(strawberry.Schema):
+    def process_errors(self, errors, execution_context=None):
+        """Log only real failures. Client mistakes are already returned in the response, a traceback for them
+        is noise: errors before execution (parse, validation, limits, variable coercion — no `path`) and
+        GraphQLError raised on purpose by resolvers."""
+        unexpected = [
+            error for error in errors
+            if error.path is not None and not isinstance(error.original_error, GraphQLError)
+        ]
+        if unexpected:
+            super().process_errors(unexpected, execution_context)
+
+
+schema = Schema(
+    query=Query,
+    extensions=[
+        QueryDepthLimiter(max_depth=MAX_DEPTH),
+        MaxAliasesLimiter(max_alias_count=MAX_ALIASES),
+        MaxTokensLimiter(max_token_count=MAX_TOKENS),
+    ],
+)
+
+
+class GraphQLView(AsyncGraphQLView):
+    async def get_context(self, request: HttpRequest, response: HttpResponse) -> Context:
+        viewer = await sync_to_async(Viewer.from_request)(request)  # request.user may hit the session table
+        return Context(request=request, response=response, viewer=viewer, loaders=CommentLoaders(viewer))

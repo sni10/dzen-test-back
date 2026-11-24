@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+from typing import TYPE_CHECKING
+
+import strawberry
+from graphql import GraphQLError
+
+from comments.models import Comment
+
+from .loaders import RepliesKey
+
+if TYPE_CHECKING:
+    from config.graphql import Context
+
+MAX_FIRST = 50
+
+
+@strawberry.enum(description='Columns of the top-level table; the default is CREATED_AT_DESC (LIFO)')
+class CommentSort(Enum):
+    USER_NAME_ASC = 'user_name'
+    USER_NAME_DESC = '-user_name'
+    EMAIL_ASC = 'email'
+    EMAIL_DESC = '-email'
+    CREATED_AT_ASC = 'created_at'
+    CREATED_AT_DESC = '-created_at'
+
+
+def parse_id(value: strawberry.ID | None, name: str) -> int | None:
+    if value is None:
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise GraphQLError(f'{name} must be a comment id') from None
+    if number < 1:
+        raise GraphQLError(f'{name} must be a comment id')
+    return number
+
+
+def check_first(first: int) -> int:
+    if not 1 <= first <= MAX_FIRST:
+        raise GraphQLError(f'first must be between 1 and {MAX_FIRST}')
+    return first
+
+
+@strawberry.type(name='Comment')
+class CommentType:
+    id: strawberry.ID
+    user_name: str
+    email: str
+    home_page: str
+    text: str = strawberry.field(description='Sanitized HTML: only <a>, <code>, <i>, <strong>')
+    is_ufo: bool = strawberry.field(description='Text hidden by a moderator; the card stays')
+    score: int
+    replies_count: int = strawberry.field(description='Direct replies visible to everyone')
+    depth: int = strawberry.field(description='0 for a top-level comment')
+    created_at: datetime
+    parent_id: strawberry.ID | None
+    root_id: strawberry.ID | None = strawberry.field(description='The top-level comment of the thread')
+
+    @classmethod
+    def from_model(cls, comment: Comment) -> CommentType:
+        return cls(
+            id=strawberry.ID(str(comment.pk)),
+            user_name=comment.user_name,
+            email=comment.email,
+            home_page=comment.home_page,
+            text=comment.text,
+            is_ufo=comment.is_ufo,
+            score=comment.score,
+            replies_count=comment.replies_count,
+            depth=comment.depth,
+            created_at=comment.created_at,
+            parent_id=strawberry.ID(str(comment.parent_id)) if comment.parent_id else None,
+            root_id=strawberry.ID(str(comment.root_id)) if comment.root_id else None,
+        )
+
+    @strawberry.field(description='The comment this one replies to (for the quote); null for top-level')
+    async def parent(self, info: strawberry.Info[Context]) -> CommentType | None:
+        if self.parent_id is None:
+            return None
+        parent = await info.context.loaders.by_id.load(int(self.parent_id))
+        return CommentType.from_model(parent) if parent else None
+
+    @strawberry.field(description=f'Direct replies, oldest first; first <= {MAX_FIRST}, `after` = endCursor')
+    async def replies(
+        self, info: strawberry.Info[Context], first: int = 10, after: strawberry.ID | None = None,
+    ) -> ReplyPage:
+        key = RepliesKey(int(self.id), check_first(first), parse_id(after, 'after'))
+        replies = await info.context.loaders.replies.load(key)
+        items = [CommentType.from_model(reply) for reply in replies.items]
+        return ReplyPage(items=items, has_more=replies.has_more, end_cursor=items[-1].id if items else after)
+
+
+@strawberry.type
+class ReplyPage:
+    items: list[CommentType]
+    has_more: bool
+    end_cursor: strawberry.ID | None = strawberry.field(description='Pass as `after` to load the next replies')
+
+
+@strawberry.type
+class CommentPage:
+    items: list[CommentType]
+    total_count: int
+    page: int
+    page_size: int
+    page_count: int
