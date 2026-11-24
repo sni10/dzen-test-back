@@ -10,6 +10,7 @@ dependencies = [
     "drf-spectacular>=0.30.0",
     "mysqlclient>=2.3.2",
     "nh3>=0.3.8",
+    "pillow>=13.0.0",
     "pydantic-settings>=2.16.3",
     "redis>=8.2.0",
     "uvicorn>=0.54.0",
@@ -34,7 +35,7 @@ prerelease = false
 # CI: `coverage run manage.py test` -> reports in the test-reports artifact
 [tool.coverage.run]
 branch = true
-source = ["accounts", "comments", "common", "config"]
+source = ["accounts", "captcha", "comments", "common", "config"]
 omit = ["*/migrations/*", "*/tests/*"]
 
 [tool.coverage.report]

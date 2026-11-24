@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'common',
     'accounts',
     'comments',
+    'captcha',
 ]
 
 MIDDLEWARE = [
@@ -85,6 +86,8 @@ DATABASES = {
     }
 }
 
+REDIS_URL = ENV.redis.url
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
@@ -123,7 +126,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
     'UNAUTHENTICATED_USER': None,
+    # Counters live in the Redis cache, shared by all workers
+    'DEFAULT_THROTTLE_RATES': {
+        'captcha': '30/min',
+    },
 }
+
+CAPTCHA_LENGTH = 5
+CAPTCHA_TTL = 300  # seconds; each CAPTCHA is also single-use
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Comments API',
