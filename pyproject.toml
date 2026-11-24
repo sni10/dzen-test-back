@@ -1,5 +1,47 @@
 [project]
 name = "dzen-test-back"
 version = "0.1.0"
-requires-python = ">=3.12"
-dependencies = []
+description = "Comments SPA backend: tree comments, CAPTCHA, attachments, live updates, moderation"
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.1.3",
+    "django-cors-headers>=4.9.0",
+    "djangorestframework>=3.18.3",
+    "drf-spectacular>=0.30.0",
+    "mysqlclient>=2.3.2",
+    "pydantic-settings>=2.16.3",
+    "redis>=8.2.0",
+    "uvicorn>=0.54.0",
+    "whitenoise>=6.12.0",
+]
+
+[tool.uv]
+package = false
+
+# Release versions come from Conventional Commits on main (python-semantic-release in CI):
+# fix -> patch, feat -> minor, "!" / BREAKING CHANGE -> major (minor while < 1.0). Source of truth: git tags vX.Y.Z.
+[tool.semantic_release]
+tag_format = "v{version}"
+commit_parser = "conventional"
+allow_zero_version = true
+major_on_zero = false
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+# CI: `coverage run manage.py test` -> reports in the test-reports artifact
+[tool.coverage.run]
+branch = true
+source = ["accounts", "common", "config"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[dependency-groups]
+dev = [
+    "coverage>=7.17.5",
+    "unittest-xml-reporting>=4.0.0",
+]
