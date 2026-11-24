@@ -1,0 +1,57 @@
+# Development stack: `cp .env.example .env && docker compose up --build`.
+# API: http://localhost:8000/api/docs/  admin: http://localhost:8000/admin/
+# Services for queues, search etc. are added together with the features that use them.
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports:
+      - "127.0.0.1:3307:3306"  # `uv run` on the host and MySQL Workbench connect here
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    env_file: .env
+    environment:
+      # .env holds the values for `uv run` on the host; inside the network these differ
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - media:/app/media
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mysqldata:
+  media:
