@@ -128,6 +128,15 @@ class CommentServiceTests(TestCase):
 
         self.assertTrue(comment.is_shadowed)
 
+    def test_shadowed_reply_is_not_counted(self):
+        user = User.objects.create_user('shadow', 'shadow@example.com', 'a-long-password-1', is_shadowbanned=True)
+        root = make_comment()
+
+        self.service.create(self.data(parent_id=root.pk), Author(user=user))
+
+        root.refresh_from_db()
+        self.assertEqual(root.replies_count, 0)
+
     def test_moderator_needs_no_captcha(self):
         admin = User.objects.create_user('mod', 'mod@example.com', 'a-long-password-1', role=User.Role.ADMIN)
 
