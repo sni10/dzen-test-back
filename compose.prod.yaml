@@ -48,10 +48,14 @@ services:
     restart: unless-stopped
 
   rabbitmq:
-    image: rabbitmq:4.1-alpine
+    image: rabbitmq:4.1-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      # Management UI on the server itself only (not the internet): open it through an SSH tunnel,
+      # ssh -L 15672:127.0.0.1:15672 deploy@<server>  ->  http://localhost:15672
+      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmqdata:/var/lib/rabbitmq
     healthcheck:
@@ -59,7 +63,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-    mem_limit: 384m
+    mem_limit: 512m  # the management plugin needs a little more
     restart: unless-stopped
 
   elasticsearch:

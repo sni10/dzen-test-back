@@ -67,3 +67,6 @@ MySQL is published on `127.0.0.1:3307` (user/password from `.env`) — MySQL Wor
 - CI (`.github/workflows/ci.yml`): commit lint + tests on MySQL for every push and pull request to `main`/`dev`;
   on push to `main` — automatic semantic version tag `vX.Y.Z`, GitHub Release and the Docker image
   `ghcr.io/sni10/dzen-test-back:<sha>` / `:vX.Y.Z`.
+- On the server the RabbitMQ management UI listens on the server's own `127.0.0.1:15672` only. Open it through an
+  SSH tunnel: `ssh -L 15672:127.0.0.1:15672 deploy@<server>`, then http://localhost:15672 with `RABBITMQ_USER` /
+  `RABBITMQ_PASSWORD` from the server's `.env`.
