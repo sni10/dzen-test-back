@@ -3,13 +3,22 @@ from django.db import models
 from django.db.models import Q
 
 
+def same_guest(guest_key, email: str) -> Q:
+    """The cookie or the e-mail. An empty cookie matches nothing: `guest_key IS NULL` would be every
+    comment posted without one (old or imported rows), not this guest."""
+    match = Q(email__iexact=email)
+    if guest_key is not None:
+        match |= Q(guest_key=guest_key)
+    return match
+
+
 class ShadowBanQuerySet(models.QuerySet):
     def active(self):
         return self.filter(lifted_at__isnull=True)
 
     def matching_guest(self, guest_key, email: str):
         """A guest is recognised by the cookie or, if the cookie was cleared, by the e-mail in the form."""
-        return self.active().filter(Q(guest_key=guest_key) | Q(email__iexact=email))
+        return self.active().filter(same_guest(guest_key, email))
 
 
 class ShadowBan(models.Model):

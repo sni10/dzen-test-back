@@ -59,16 +59,36 @@ class StatsTests(TestCase):
 
         self.assertEqual(len(queries), 0)
 
-    def test_a_new_comment_drops_the_cache(self):
+    def test_a_new_comment_increments_the_cached_counters_without_a_recount(self):
         self.assertEqual(stats.stats_for(Viewer.anonymous()).comments, 4)
+        self.assertEqual(stats.top_level_count(Viewer.anonymous()), 4)
         captcha = FakeCaptcha()
         service = CommentService(CommentMarkup(), captcha.service, lambda pk: None, RecordingNotifier())
 
         with self.captureOnCommitCallbacks(execute=True):
-            service.create(NewComment(user_name='Anonym', email='a@example.com', text='New',
+            top = service.create(NewComment(user_name='Anonym', email='a@example.com', text='New',
+                                            captcha_key=captcha.new_key(), captcha_answer='Ab3Cd'), Author())
+            service.create(NewComment(user_name='Anonym', email='a@example.com', text='Reply', parent_id=top.pk,
                                       captcha_key=captcha.new_key(), captcha_answer='Ab3Cd'), Author())
 
+        with CaptureQueriesContext(connection) as queries:
+            self.assertEqual(stats.stats_for(Viewer.anonymous()).comments, 6)
+            self.assertEqual(stats.top_level_count(Viewer.anonymous()), 5)  # the reply is not a feed row
+        self.assertEqual(len(queries), 0)
+
+    def test_an_increment_of_an_expired_counter_leaves_a_recount(self):
+        stats.stats_for(Viewer.anonymous())
+        cache.delete(stats.PREFIX + 'public')
+        comment = make_comment()
+
+        stats.comment_created(comment)
+
         self.assertEqual(stats.stats_for(Viewer.anonymous()).comments, 5)
+
+    def test_feed_rows_per_viewer(self):
+        self.assertEqual(stats.top_level_count(Viewer.anonymous()), 4)
+        self.assertEqual(stats.top_level_count(Viewer(guest_key=self.guest)), 5)  # own shadowed comment
+        self.assertEqual(stats.top_level_count(Viewer(is_moderator=True)), 6)
 
     def test_graphql(self):
         guest = self.client.post(reverse('graphql'), {'query': QUERY}, content_type='application/json').json()

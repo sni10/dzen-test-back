@@ -6,7 +6,7 @@ are recounted, so no number gives a hidden comment or a shadowed vote away.
 from collections.abc import Callable
 
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Sum
 from django.utils import timezone
 
 from accounts.models import User
@@ -14,7 +14,7 @@ from comments import stats
 from comments.live import Notifier
 from comments.models import Comment, CommentVote
 
-from .models import ModerationAction, ShadowBan
+from .models import ModerationAction, ShadowBan, same_guest
 
 
 class ModerationError(Exception):
@@ -33,7 +33,7 @@ def _comment(comment_id: int) -> Comment:
 def author_comments(ban: ShadowBan):
     if ban.user_id is not None:
         return Comment.objects.filter(user_id=ban.user_id)
-    return Comment.objects.filter(user__isnull=True).filter(Q(guest_key=ban.guest_key) | Q(email__iexact=ban.email))
+    return Comment.objects.filter(user__isnull=True).filter(same_guest(ban.guest_key, ban.email))
 
 
 def recount_replies(parent_ids) -> None:

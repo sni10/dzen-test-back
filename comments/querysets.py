@@ -20,12 +20,16 @@ class CommentQuerySet(models.QuerySet):
         """Hide shadow-banned comments from everyone except their author and moderators."""
         if viewer.is_moderator:
             return self
-        visible = Q(is_shadowed=False)
+        # Own hidden comments by id (a small indexed subquery), not by user_id/guest_key: then the sort indexes,
+        # which carry is_shadowed and the id, answer the whole condition without reading rows
         if viewer.user_id is not None:
-            visible |= Q(user_id=viewer.user_id)
-        if viewer.guest_key is not None:
-            visible |= Q(guest_key=viewer.guest_key)
-        return self.filter(visible)
+            own = Q(user_id=viewer.user_id)
+        elif viewer.guest_key is not None:
+            own = Q(guest_key=viewer.guest_key)
+        else:
+            return self.filter(is_shadowed=False)
+        own_hidden = self.model.objects.filter(own, is_shadowed=True).values('pk')
+        return self.filter(Q(is_shadowed=False) | Q(pk__in=own_hidden))
 
     def sorted_by(self, sort: str = DEFAULT_SORT):
         """Sort by an allowlisted column; `id` breaks ties in the same direction so pages are stable."""

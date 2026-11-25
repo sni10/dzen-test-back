@@ -83,10 +83,11 @@ class ElasticsearchIndex:
         self.client.indices.delete(index=self.index, ignore_unavailable=True)
         self.ensure()
 
-    def save(self, comments: list[Comment]) -> None:
+    def save(self, comments: list[Comment], wait: bool = True) -> None:
+        """`wait`: searchable when this returns (a new comment); a bulk reindex skips that per batch."""
         self.ensure()
         bulk(self.client, ({'_index': self.index, '_id': c.pk, '_source': document(c)} for c in comments),
-             refresh='wait_for')
+             refresh='wait_for' if wait else False)
 
     def remove(self, ids: list[int]) -> None:
         for comment_id in ids:
