@@ -40,7 +40,7 @@ prerelease = false
 # CI: `coverage run manage.py test` -> reports in the test-reports artifact
 [tool.coverage.run]
 branch = true
-source = ["accounts", "captcha", "comments", "common", "config"]
+source = ["accounts", "captcha", "comments", "common", "config", "moderation"]
 omit = ["*/migrations/*", "*/tests/*"]
 
 [tool.coverage.report]
