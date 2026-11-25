@@ -122,15 +122,17 @@ class CommentService:
         )
         comment.set_parent(parent)
         with transaction.atomic():
-            comment.save()
+            # The parent's counter first: that takes its row lock before the INSERT. The other way round two
+            # concurrent replies both hold the shared lock of the foreign-key check and deadlock on the UPDATE.
             # A shadowed reply is not counted: the counter must not reveal hidden comments to other people
             if parent is not None and not comment.is_shadowed:
                 Comment.objects.filter(pk=parent.pk).update(replies_count=F('replies_count') + 1)
+            comment.save()
             if checked is not None:
                 attachment = self._attach(comment, data.attachment, checked)
                 if checked.needs_processing:
                     transaction.on_commit(lambda: self.process_attachment(attachment.pk))
-            transaction.on_commit(stats.invalidate)
+            transaction.on_commit(lambda: stats.comment_created(comment))
             transaction.on_commit(lambda: self.notifier.comment_created(comment))
             transaction.on_commit(lambda: self.index_comments([comment.pk]))
         return comment

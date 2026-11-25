@@ -9,7 +9,7 @@ from graphql import GraphQLError
 
 from comments.models import Comment
 from comments.search import PAGE_SIZE as SEARCH_PAGE_SIZE
-from comments.stats import stats_for
+from comments.stats import stats_for, top_level_count
 from comments.viewer import Viewer
 
 from .types import CommentPage, CommentSort, CommentType, parse_id
@@ -21,13 +21,21 @@ PAGE_SIZE = 25  # the assignment: 25 top-level comments per page
 MAX_SINCE = 100
 
 
-def comment_page(comments, page: int) -> CommentPage:
-    """One page of an already filtered and ordered queryset (the feed, a user's own comments)."""
+def comment_page(comments, page: int, total: int | None = None) -> CommentPage:
+    """One page of an already filtered and ordered queryset (the feed, a user's own comments).
+
+    `total` when the caller knows it cheaper than COUNT(*) (the feed: cached counters).
+    """
     if page < 1:
         raise GraphQLError('page must be 1 or greater')
-    total = comments.count()
+    if total is None:
+        total = comments.count()
     offset = (page - 1) * PAGE_SIZE
-    rows = list(comments[offset:offset + PAGE_SIZE])
+    # Deferred join: the ids of the page from the index alone, then the rows of these 25 only.
+    # Selecting whole rows with a deep OFFSET reads every skipped row (seconds at page 8000 of a million)
+    ids = list(comments.values_list('pk', flat=True)[offset:offset + PAGE_SIZE])
+    by_id = comments.order_by().in_bulk(ids)
+    rows = [by_id[pk] for pk in ids if pk in by_id]
     return CommentPage(
         items=[CommentType.from_model(comment) for comment in rows],
         total_count=total,
@@ -38,7 +46,8 @@ def comment_page(comments, page: int) -> CommentPage:
 
 
 def _feed_page(viewer: Viewer, page: int, sort: CommentSort) -> CommentPage:
-    return comment_page(Comment.objects.top_level().visible_to(viewer).sorted_by(sort.value), page)
+    rows = Comment.objects.top_level().visible_to(viewer).sorted_by(sort.value)
+    return comment_page(rows, page, total=top_level_count(viewer))
 
 
 def _since(viewer: Viewer, last_id: int, limit: int) -> list[CommentType]:

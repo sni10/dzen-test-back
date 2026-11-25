@@ -33,6 +33,8 @@ class DjangoSettings(Section):
     secret_key: SecretStr
     debug: bool = False
     allowed_hosts: CommaList = []
+    # Per-IP rate limits (CAPTCHA, posting, auth). Off only for a load test from one machine; never in production
+    throttling: bool = True
 
     _split_hosts = field_validator('allowed_hosts', mode='before')(split_commas)
 
@@ -45,6 +47,8 @@ class DjangoSettings(Section):
             raise ValueError('DJANGO_SECRET_KEY must be a random value of 50+ chars when DJANGO_DEBUG=false')
         if not self.allowed_hosts:
             raise ValueError('DJANGO_ALLOWED_HOSTS is required when DJANGO_DEBUG=false')
+        if not self.throttling:
+            raise ValueError('DJANGO_THROTTLING=false is for a local load test only (DJANGO_DEBUG=true)')
         return self
 
 
