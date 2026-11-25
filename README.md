@@ -27,6 +27,7 @@ Open **http://localhost:8080**. Caddy serves the SPA and the API on one origin, 
 |---|---|
 | `/graphql` | GraphQL (reading comments; GraphiQL in a browser) |
 | `/api/...` | REST: CAPTCHA, posting comments, preview, health; Swagger at `/api/docs/` |
+| `/api/auth/...` | JWT: `register/`, `login/` (name or e-mail), `refresh/`, `logout/`. The access token (15 min) is sent as `Authorization: Bearer`, on the WebSocket as `?token=`; the refresh token (7 days, rotated) lives in an httpOnly cookie |
 | `/ws/comments/` | WebSocket: `comment.created`, `attachment.updated` pushed to every open page |
 | `/media/...`, `/admin/`, `/static/...` | Django |
 | everything else | the SPA (nginx from dzen-test-front) |
