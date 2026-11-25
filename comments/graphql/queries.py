@@ -19,11 +19,13 @@ PAGE_SIZE = 25  # the assignment: 25 top-level comments per page
 MAX_SINCE = 100
 
 
-def _feed_page(viewer: Viewer, page: int, sort: CommentSort) -> CommentPage:
-    feed = Comment.objects.top_level().visible_to(viewer)
-    total = feed.count()
+def comment_page(comments, page: int) -> CommentPage:
+    """One page of an already filtered and ordered queryset (the feed, a user's own comments)."""
+    if page < 1:
+        raise GraphQLError('page must be 1 or greater')
+    total = comments.count()
     offset = (page - 1) * PAGE_SIZE
-    rows = list(feed.sorted_by(sort.value)[offset:offset + PAGE_SIZE])
+    rows = list(comments[offset:offset + PAGE_SIZE])
     return CommentPage(
         items=[CommentType.from_model(comment) for comment in rows],
         total_count=total,
@@ -31,6 +33,10 @@ def _feed_page(viewer: Viewer, page: int, sort: CommentSort) -> CommentPage:
         page_size=PAGE_SIZE,
         page_count=max(1, math.ceil(total / PAGE_SIZE)),
     )
+
+
+def _feed_page(viewer: Viewer, page: int, sort: CommentSort) -> CommentPage:
+    return comment_page(Comment.objects.top_level().visible_to(viewer).sorted_by(sort.value), page)
 
 
 def _since(viewer: Viewer, last_id: int, limit: int) -> list[CommentType]:
@@ -44,8 +50,6 @@ class CommentQuery:
     async def comments(
         self, info: strawberry.Info[Context], page: int = 1, sort: CommentSort = CommentSort.CREATED_AT_DESC,
     ) -> CommentPage:
-        if page < 1:
-            raise GraphQLError('page must be 1 or greater')
         return await sync_to_async(_feed_page)(info.context.viewer, page, sort)
 
     @strawberry.field(description='One comment (a thread link); null if it does not exist or is hidden')

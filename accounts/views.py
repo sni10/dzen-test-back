@@ -24,8 +24,7 @@ REFRESH_COOKIE = 'refresh_token'
 REFRESH_COOKIE_PATH = '/api/auth/'
 
 
-def session_response(user: User, refresh: RefreshToken, code=status.HTTP_200_OK) -> Response:
-    response = Response({'access': str(refresh.access_token), 'user': MeSerializer(user).data}, status=code)
+def set_refresh_cookie(response, refresh: RefreshToken) -> None:
     response.set_cookie(
         REFRESH_COOKIE,
         str(refresh),
@@ -35,6 +34,11 @@ def session_response(user: User, refresh: RefreshToken, code=status.HTTP_200_OK)
         secure=not settings.DEBUG,
         samesite='Lax',
     )
+
+
+def session_response(user: User, refresh: RefreshToken, code=status.HTTP_200_OK) -> Response:
+    response = Response({'access': str(refresh.access_token), 'user': MeSerializer(user).data}, status=code)
+    set_refresh_cookie(response, refresh)
     return response
 
 
