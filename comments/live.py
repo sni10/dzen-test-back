@@ -65,6 +65,7 @@ def comment_payload(comment: Comment) -> dict:
         'homePage': comment.home_page,
         'text': '' if comment.is_ufo else comment.text,  # the hidden text never leaves the server
         'isUfo': comment.is_ufo,
+        'byModerator': comment.by_moderator,
         'score': comment.score,
         'repliesCount': comment.replies_count,
         'depth': comment.depth,

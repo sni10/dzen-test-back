@@ -32,6 +32,9 @@ class Comment(models.Model):
 
     is_ufo = models.BooleanField(default=False)  # text hidden by a moderator ("UFO"), the card stays
     is_shadowed = models.BooleanField(default=False)  # the author is shadow-banned: visible only to them
+    # Posted by a moderator: shown as a message from the administration. A snapshot like the author's name,
+    # so a later role change does not rewrite old comments
+    by_moderator = models.BooleanField(default=False)
     replies_count = models.PositiveIntegerField(default=0)  # direct replies, denormalized
     score = models.IntegerField(default=0)  # sum of counted votes, denormalized
 
