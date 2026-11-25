@@ -35,6 +35,21 @@ services:
       retries: 10
     restart: unless-stopped
 
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: dzen  # the default guest user may only connect from localhost
+      RABBITMQ_DEFAULT_PASS: dzen
+    ports:
+      - "127.0.0.1:5673:5672"    # `uv run celery -A config worker` on the host
+      - "127.0.0.1:15673:15672"  # management UI: http://localhost:15673 (dzen / dzen)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
   app:
     build: .
     env_file: .env
@@ -43,6 +58,7 @@ services:
       DB_HOST: db
       DB_PORT: "3306"
       REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://dzen:dzen@rabbitmq:5672//
     volumes:
       - media:/app/media
     ports:
@@ -51,6 +67,28 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Background tasks (image resizing); the same image as `app`, the app container runs the migrations
+  worker:
+    build: .
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://dzen:dzen@rabbitmq:5672//
+      RUN_MIGRATIONS: "0"
+    command: ["celery", "-A", "config", "worker", "--loglevel", "info", "--concurrency", "2"]
+    volumes:
+      - media:/app/media  # resizes the files the app saved
+    healthcheck:
+      disable: true  # the image's healthcheck probes the HTTP server, which a worker does not run
+    depends_on:
+      app:
         condition: service_healthy
     restart: unless-stopped
 

@@ -1,8 +1,23 @@
-"""ASGI entry point (uvicorn). WebSocket routing (Channels) is added here later."""
+"""ASGI entry point (uvicorn): HTTP goes to Django, WebSocket to Channels."""
 import os
 
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-application = get_asgi_application()
+django_application = get_asgi_application()  # set up Django before importing code that uses models
+
+from channels.auth import AuthMiddlewareStack  # noqa: E402
+from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
+from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
+from django.urls import path  # noqa: E402
+
+from comments.consumers import CommentsConsumer  # noqa: E402
+
+websocket_urlpatterns = [path('ws/comments/', CommentsConsumer.as_asgi())]
+
+application = ProtocolTypeRouter({
+    'http': django_application,
+    # Origin must be one of ALLOWED_HOSTS: another site cannot open a socket with the visitor's cookies
+    'websocket': AllowedHostsOriginValidator(AuthMiddlewareStack(URLRouter(websocket_urlpatterns))),
+})

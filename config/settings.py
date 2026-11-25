@@ -89,6 +89,14 @@ DATABASES = {
 
 REDIS_URL = ENV.redis.url
 
+# WebSocket groups (Channels) live in Redis, so the web process and Celery workers reach every connection
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {'hosts': [ENV.redis.url]},
+    },
+}
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
@@ -138,6 +146,12 @@ REST_FRAMEWORK = {
 
 CAPTCHA_LENGTH = 5
 CAPTCHA_TTL = 300  # seconds; each CAPTCHA is also single-use
+
+# Celery over RabbitMQ: background work (image resizing). Results are not needed, only side effects.
+CELERY_BROKER_URL = ENV.rabbitmq.url
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_TASK_ACKS_LATE = True  # a task survives a worker crash
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Comments API',

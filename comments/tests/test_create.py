@@ -19,6 +19,20 @@ from common.guest import COOKIE_NAME
 from .factories import make_comment
 
 
+class RecordingNotifier:
+    """Notifier test double: remembers what would have been broadcast."""
+
+    def __init__(self):
+        self.created = []
+        self.updated = []
+
+    def comment_created(self, comment):
+        self.created.append(comment)
+
+    def attachment_updated(self, attachment):
+        self.updated.append(attachment)
+
+
 class FakeCaptcha:
     """Issues CAPTCHAs with a known answer on the in-memory store."""
 
@@ -34,7 +48,8 @@ class FakeCaptcha:
 class CommentServiceTests(TestCase):
     def setUp(self):
         self.captcha = FakeCaptcha()
-        self.service = CommentService(CommentMarkup(), self.captcha.service)
+        self.service = CommentService(CommentMarkup(), self.captcha.service, process_attachment=lambda pk: None,
+                                      notifier=RecordingNotifier())
         self.guest = Author(guest_key=uuid.uuid4(), ip='203.0.113.7', user_agent='Test/1.0')
 
     def data(self, **overrides) -> NewComment:

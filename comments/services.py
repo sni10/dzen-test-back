@@ -1,15 +1,19 @@
 """Comment use cases. Views only translate HTTP to these calls; rules live here."""
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
+from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import F
 
 from accounts.models import User
 from captcha.service import CaptchaService
 
+from .attachments import AttachmentRejected, CheckedUpload, inspect_upload
+from .live import Notifier
 from .markup import CommentMarkup, MarkupError
-from .models import Comment
+from .models import Attachment, Comment
 from .viewer import Viewer
 
 
@@ -29,6 +33,10 @@ class CaptchaInvalid(CommentError):
 
 class ParentNotFound(CommentError):
     field = 'parent'
+
+
+class InvalidAttachment(CommentError):
+    field = 'attachment'
 
 
 class InvalidMarkup(CommentError):
@@ -51,6 +59,7 @@ class NewComment:
     parent_id: int | None = None
     captcha_key: str = ''
     captcha_answer: str = ''
+    attachment: UploadedFile | None = None
 
 
 @dataclass(frozen=True)
@@ -72,22 +81,31 @@ class Author:
 
 
 class CommentService:
-    def __init__(self, markup: CommentMarkup, captcha: CaptchaService):
+    def __init__(
+        self,
+        markup: CommentMarkup,
+        captcha: CaptchaService,
+        process_attachment: Callable[[int], None],
+        notifier: Notifier,
+    ):
         self.markup = markup
         self.captcha = captcha
+        self.process_attachment = process_attachment  # queues background work (a Celery task)
+        self.notifier = notifier  # live updates over WebSocket
 
     def preview(self, text: str) -> str:
         """The text exactly as `create` would store it; nothing is saved and no CAPTCHA is spent."""
         return self._clean(text)
 
     def create(self, data: NewComment, author: Author) -> Comment:
-        """Validate markup and parent first, then spend the CAPTCHA, then save.
+        """Validate markup, parent and attachment first, then spend the CAPTCHA, then save.
 
-        The CAPTCHA is checked last so a typo in the text does not cost the user a new CAPTCHA.
-        Moderators post without a CAPTCHA.
+        The CAPTCHA is checked last so a typo in the text or a wrong file does not cost a new CAPTCHA.
+        Moderators post without a CAPTCHA. An image is resized in the background after the commit.
         """
         text = self._clean(data.text)
         parent = self._parent(data.parent_id, author.viewer)
+        checked = self._inspect(data.attachment)
 
         if not author.viewer.is_moderator and not self.captcha.verify(data.captcha_key, data.captcha_answer):
             raise CaptchaInvalid('Wrong or expired CAPTCHA, enter the new one')
@@ -105,7 +123,35 @@ class CommentService:
             # A shadowed reply is not counted: the counter must not reveal hidden comments to other people
             if parent is not None and not comment.is_shadowed:
                 Comment.objects.filter(pk=parent.pk).update(replies_count=F('replies_count') + 1)
+            if checked is not None:
+                attachment = self._attach(comment, data.attachment, checked)
+                if checked.needs_processing:
+                    transaction.on_commit(lambda: self.process_attachment(attachment.pk))
+            transaction.on_commit(lambda: self.notifier.comment_created(comment))
         return comment
+
+    @staticmethod
+    def _inspect(upload: UploadedFile | None) -> CheckedUpload | None:
+        if upload is None:
+            return None
+        try:
+            return inspect_upload(upload)
+        except AttachmentRejected as error:
+            raise InvalidAttachment(str(error)) from error
+
+    @staticmethod
+    def _attach(comment: Comment, upload: UploadedFile, checked: CheckedUpload) -> Attachment:
+        attachment = Attachment(
+            comment=comment,
+            kind=checked.kind,
+            original_name=(upload.name or '')[:255],
+            size=upload.size,
+            status=Attachment.Status.PROCESSING if checked.needs_processing else Attachment.Status.READY,
+        )
+        # ponytail: the file is written before the commit; a rolled-back transaction leaves it orphaned
+        attachment.file.save(f'upload.{checked.extension}', upload, save=False)
+        attachment.save()
+        return attachment
 
     def _clean(self, text: str) -> str:
         try:

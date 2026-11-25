@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import strawberry
 from graphql import GraphQLError
 
-from comments.models import Comment
+from comments.models import Attachment, Comment
 
 from .loaders import RepliesKey
 
@@ -45,6 +45,31 @@ def check_first(first: int) -> int:
     return first
 
 
+@strawberry.type(name='Attachment')
+class AttachmentType:
+    id: strawberry.ID
+    kind: str = strawberry.field(description='image (fitted into 320x240) or text (TXT up to 100 KB)')
+    url: str = strawberry.field(description='Relative URL on the same origin (/media/...)')
+    original_name: str
+    size: int = strawberry.field(description='Bytes of the stored file')
+    width: int | None
+    height: int | None
+    status: str = strawberry.field(description='processing (image being resized), ready or failed')
+
+    @classmethod
+    def from_model(cls, attachment: Attachment) -> AttachmentType:
+        return cls(
+            id=strawberry.ID(str(attachment.pk)),
+            kind=attachment.kind,
+            url=attachment.file.url,
+            original_name=attachment.original_name,
+            size=attachment.size,
+            width=attachment.width,
+            height=attachment.height,
+            status=attachment.status,
+        )
+
+
 @strawberry.type(name='Comment')
 class CommentType:
     id: strawberry.ID
@@ -76,6 +101,13 @@ class CommentType:
             parent_id=strawberry.ID(str(comment.parent_id)) if comment.parent_id else None,
             root_id=strawberry.ID(str(comment.root_id)) if comment.root_id else None,
         )
+
+    @strawberry.field(description='Files attached to the comment (at most one at the moment)')
+    async def attachments(self, info: strawberry.Info[Context]) -> list[AttachmentType]:
+        if self.is_ufo:
+            return []  # hidden by a moderator together with the text
+        found = await info.context.loaders.attachments.load(int(self.id))
+        return [AttachmentType.from_model(attachment) for attachment in found]
 
     @strawberry.field(description='The comment this one replies to (for the quote); null for top-level')
     async def parent(self, info: strawberry.Info[Context]) -> CommentType | None:

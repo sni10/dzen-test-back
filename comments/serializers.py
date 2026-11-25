@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from accounts.models import username_validator
 
-from .models import Comment
+from .models import Attachment, Comment
 from .services import NewComment
 
 TEXT_MAX_LENGTH = 5000
@@ -42,6 +42,11 @@ class CommentCreateSerializer(serializers.Serializer):
                                       help_text='Id of the comment this one replies to')
     captcha_key = serializers.CharField(max_length=64)
     captcha_answer = serializers.CharField(max_length=10)
+    attachment = serializers.FileField(
+        required=False, allow_null=True, default=None, max_length=255,
+        help_text='Optional: a JPG / GIF / PNG image (fitted into 320x240) or a TXT file up to 100 KB. '
+                  'Send the form as multipart/form-data.',
+    )
 
     def validate_home_page(self, value: str) -> str:
         if value and not value.lower().startswith(('http://', 'https://')):
@@ -58,16 +63,28 @@ class CommentCreateSerializer(serializers.Serializer):
             parent_id=data['parent'],
             captcha_key=data['captcha_key'],
             captcha_answer=data['captcha_answer'],
+            attachment=data['attachment'],
         )
+
+
+class AttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.FileField(source='file', read_only=True, use_url=True)
+
+    class Meta:
+        model = Attachment
+        fields = ('id', 'kind', 'url', 'original_name', 'size', 'width', 'height', 'status')
+        read_only_fields = fields
 
 
 class CommentSerializer(serializers.ModelSerializer):
     """Public view of a comment: never exposes ip, user agent, guest key or the shadow flag."""
 
+    attachments = AttachmentSerializer(many=True, read_only=True)
+
     class Meta:
         model = Comment
         fields = (
             'id', 'parent', 'root', 'depth', 'user_name', 'email', 'home_page', 'text',
-            'is_ufo', 'replies_count', 'score', 'created_at',
+            'is_ufo', 'replies_count', 'score', 'created_at', 'attachments',
         )
         read_only_fields = fields
