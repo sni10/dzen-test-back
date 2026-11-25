@@ -110,12 +110,8 @@ class WebSocketTests(TransactionTestCase):
     """
 
     def setUp(self):
-        layers = {
-            'default': {
-                'BACKEND': 'channels_redis.core.RedisChannelLayer',
-                'CONFIG': {'hosts': [settings.REDIS_URL], 'prefix': f'test-{uuid.uuid4().hex}'},
-            },
-        }
+        default = settings.CHANNEL_LAYERS['default']
+        layers = {'default': {**default, 'CONFIG': {**default['CONFIG'], 'prefix': f'test-{uuid.uuid4().hex}'}}}
         isolated = self.settings(CHANNEL_LAYERS=layers)
         isolated.enable()
         self.addCleanup(isolated.disable)
@@ -186,6 +182,15 @@ class WebSocketTests(TransactionTestCase):
 
         self.assertTrue(await communicator.receive_nothing(timeout=0.2))
         await communicator.disconnect()
+
+
+class ChannelLayerConfigTests(TestCase):
+    def test_redis_reads_outlast_the_blocking_receive(self):
+        """Otherwise an idle WebSocket is dropped after ~5 s (redis-py's default socket timeout)."""
+        from channels_redis.core import RedisChannelLayer
+
+        [host] = settings.CHANNEL_LAYERS['default']['CONFIG']['hosts']
+        self.assertGreater(host['socket_timeout'], RedisChannelLayer.brpop_timeout)
 
 
 class BroadcastFailureTests(TestCase):
