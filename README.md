@@ -1,6 +1,6 @@
 # dzen-test-back
 
-Бэкенд тестового задания «SPA-комментарии»: древовидные комментарии с CAPTCHA, вложения, обновления
+Бэкенд «SPA-комментарии»: древовидные комментарии с CAPTCHA, вложения, обновления
 в реальном времени по WebSocket, модерация, поиск.
 
 Стек: Python 3.14, Django 6, DRF, Strawberry GraphQL, Channels (WebSocket), MySQL 8.4, Redis,
@@ -72,7 +72,7 @@ EER-диаграмма из MySQL Workbench (все таблицы, включа
 Та же диаграмма в PNG — [db/schema.png](db/schema.png).
 
 Индексы ленты — под каждую сортировку: `(parent_id, created_at | user_name | email, id, is_shadowed)`; ветка
-читается по `(root_id, created_at, id)`. Почему так — в [отчёте нагрузочного теста](loadtest/README.md).
+читается по `(root_id, created_at, id)`. [отчёт нагрузочного теста](loadtest/README.md).
 
 ## Локальный запуск (Docker)
 
@@ -97,8 +97,6 @@ docker compose up --build
 | `/media/...`, `/admin/`, `/static/...` | Django |
 | всё остальное | SPA (nginx из dzen-test-front) |
 
-Django также доступен на http://localhost:8000 (для прокси `npm run dev` во фронтенде).
-
 Фоновая работа идёт в контейнере `worker` (Celery через RabbitMQ): прикреплённое изображение сначала
 сохраняется (`status: processing`), затем вписывается в 320×240 и пересохраняется (`ready`). Интерфейс
 RabbitMQ: http://localhost:15673 (`dzen` / `dzen`).
@@ -112,21 +110,7 @@ Elasticsearch. Новые и отмодерированные комментар
 **Нагрузочный тест** на миллионе комментариев (`manage.py seed`, Locust) — как запустить и результаты:
 [loadtest/README.md](loadtest/README.md).
 
-## Разработка без контейнера приложения
-
-MySQL, Redis, RabbitMQ и Elasticsearch в Docker, Django на хосте ([uv](https://docs.astral.sh/uv/)):
-
-```bash
-cp .env.example .env
-docker compose up -d db redis rabbitmq elasticsearch
-uv sync
-uv run python manage.py migrate
-uv run python manage.py runserver
-uv run celery -A config worker --pool solo --loglevel info   # фоновые задачи (в другом терминале)
-uv run python manage.py test
-```
-
-MySQL доступен на `127.0.0.1:3307` (пользователь и пароль из `.env`) — туда подключается MySQL Workbench.
+MySQL доступен на `127.0.0.1:3307` (пользователь и пароль из `.env`)
 
 ## Git и релизы
 
