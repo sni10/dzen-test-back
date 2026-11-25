@@ -126,6 +126,20 @@ class ShadowBanTests(ServiceTestCase):
         self.assertTrue(post(uuid.uuid4(), 'TROLL@example.com').is_shadowed)  # cleared cookie, same e-mail
         self.assertFalse(post(uuid.uuid4(), 'someone@example.com').is_shadowed)
 
+    def test_a_guest_without_a_cookie_is_matched_by_email_only(self):
+        """Old or imported comments have no guest_key: banning one must not hit every such comment"""
+        target = make_comment(email='troll@example.com')
+        same_email = make_comment(email='TROLL@example.com')
+        stranger = make_comment(email='someone@example.com')
+
+        self.service.shadowban(self.moderator, target.pk)
+
+        shadowed = set(Comment.objects.filter(is_shadowed=True).values_list('pk', flat=True))
+        self.assertEqual(shadowed, {target.pk, same_email.pk})
+        self.assertFalse(ShadowBan.objects.matching_guest(None, 'someone@example.com').exists())
+        stranger.refresh_from_db()
+        self.assertFalse(stranger.is_shadowed)
+
     def test_unban_brings_everything_back(self):
         author = make_user('Spammer')
         comment = make_comment(user=author)

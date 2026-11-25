@@ -159,6 +159,8 @@ REST_FRAMEWORK = {
         'auth_password_reset_confirm': '10/min',
     },
 }
+if not ENV.django.throttling:  # a local load test from one machine (DEBUG only, see the settings schema)
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = dict.fromkeys(REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'])
 
 # Mail: Brevo SMTP in production (EMAIL_* in the server's .env), printed to the log locally
 MAILERS = {

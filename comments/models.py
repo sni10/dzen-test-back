@@ -49,10 +49,16 @@ class Comment(models.Model):
     class Meta:
         indexes = [
             # top-level table: parent IS NULL + every sortable column, id as the tie-breaker
-            models.Index(fields=['parent', 'created_at', 'id'], name='comment_parent_created'),
-            models.Index(fields=['parent', 'user_name', 'id'], name='comment_parent_user_name'),
-            models.Index(fields=['parent', 'email', 'id'], name='comment_parent_email'),
+            # Sorts of the feed; is_shadowed rides along so the visibility filter is answered by the index
+            models.Index(fields=['parent', 'created_at', 'id', 'is_shadowed'], name='comment_feed_created'),
+            models.Index(fields=['parent', 'user_name', 'id', 'is_shadowed'], name='comment_feed_user_name'),
+            models.Index(fields=['parent', 'email', 'id', 'is_shadowed'], name='comment_feed_email'),
             models.Index(fields=['root', 'created_at', 'id'], name='comment_thread'),
+            # Covering indexes for the counters (comments/stats.py): index scans, not a million rows
+            models.Index(fields=['is_shadowed', 'is_ufo'], name='comment_shadowed_ufo'),
+            models.Index(fields=['guest_key', 'is_shadowed'], name='comment_guest_shadowed'),
+            # A guest's shadow ban finds their comments by the cookie or the e-mail
+            models.Index(fields=['email'], name='comment_email'),
         ]
 
     def __str__(self):

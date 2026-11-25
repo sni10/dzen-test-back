@@ -44,6 +44,9 @@ Administrator: `docker compose exec app python manage.py createsuperuser`.
 New and moderated comments are indexed by the worker; to (re)build the whole index — on a new server or after a
 mapping change: `docker compose exec app python manage.py reindex`.
 
+**Load test** on a million comments (`manage.py seed`, Locust) — how to run it and the results:
+[loadtest/README.md](loadtest/README.md).
+
 ## Development without the app container
 
 MySQL and Redis in Docker, Django on the host ([uv](https://docs.astral.sh/uv/)):

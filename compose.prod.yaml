@@ -79,7 +79,9 @@ services:
       interval: 15s
       timeout: 10s
       retries: 20
-    mem_limit: 1g
+    # The 512 MB heap plus the JVM's own memory and Lucene's mapped files take ~0.9 GB right after start:
+    # 1 GB left no headroom for indexing under load
+    mem_limit: 1536m
     restart: unless-stopped
 
   app:
