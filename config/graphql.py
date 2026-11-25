@@ -8,6 +8,7 @@ from graphql import GraphQLError
 from strawberry.django.views import AsyncGraphQLView
 from strawberry.extensions import MaxAliasesLimiter, MaxTokensLimiter, QueryDepthLimiter
 
+from accounts.tokens import user_from_request
 from comments.graphql.loaders import CommentLoaders
 from comments.graphql.queries import CommentQuery
 from comments.viewer import Viewer
@@ -55,5 +56,6 @@ schema = Schema(
 
 class GraphQLView(AsyncGraphQLView):
     async def get_context(self, request: HttpRequest, response: HttpResponse) -> Context:
-        viewer = await sync_to_async(Viewer.from_request)(request)  # request.user may hit the session table
+        user = await sync_to_async(user_from_request)(request)  # Authorization: Bearer <access token>
+        viewer = Viewer.of(user, getattr(request, 'guest_key', None))
         return Context(request=request, response=response, viewer=viewer, loaders=CommentLoaders(viewer))
