@@ -11,6 +11,7 @@ from accounts.models import User
 from captcha.service import CaptchaService
 
 from .attachments import AttachmentRejected, CheckedUpload, inspect_upload
+from . import stats
 from .live import Notifier
 from .markup import CommentMarkup, MarkupError
 from .models import Attachment, Comment
@@ -127,6 +128,7 @@ class CommentService:
                 attachment = self._attach(comment, data.attachment, checked)
                 if checked.needs_processing:
                     transaction.on_commit(lambda: self.process_attachment(attachment.pk))
+            transaction.on_commit(stats.invalidate)
             transaction.on_commit(lambda: self.notifier.comment_created(comment))
         return comment
 

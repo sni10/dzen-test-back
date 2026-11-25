@@ -113,6 +113,9 @@ type Mutation {
 }
 
 type Query {
+  """Counters for the stats cards; what a viewer may not know is null"""
+  stats: StatsType!
+
   """Top-level comments, 25 per page"""
   comments(page: Int! = 1, sort: CommentSort! = CREATED_AT_DESC): CommentPage!
 
@@ -142,6 +145,23 @@ type ReplyPage {
 
   """Pass as `after` to load the next replies"""
   endCursor: ID
+}
+
+type StatsType {
+  """Comments this viewer can see"""
+  comments: Int!
+
+  """Hidden by a moderator"""
+  ufo: Int!
+
+  """Shadow-banned authors' comments; moderators only"""
+  shadowed: Int
+
+  """Signed-in users only"""
+  myComments: Int
+
+  """Signed-in users only"""
+  myBookmarks: Int
 }
 
 type VoteResult {

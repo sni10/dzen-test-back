@@ -8,6 +8,7 @@ from asgiref.sync import sync_to_async
 from graphql import GraphQLError
 
 from comments.models import Comment
+from comments.stats import stats_for
 from comments.viewer import Viewer
 
 from .types import CommentPage, CommentSort, CommentType, parse_id
@@ -45,7 +46,22 @@ def _since(viewer: Viewer, last_id: int, limit: int) -> list[CommentType]:
 
 
 @strawberry.type
+class StatsType:
+    comments: int = strawberry.field(description='Comments this viewer can see')
+    ufo: int = strawberry.field(description='Hidden by a moderator')
+    shadowed: int | None = strawberry.field(description="Shadow-banned authors' comments; moderators only")
+    my_comments: int | None = strawberry.field(description='Signed-in users only')
+    my_bookmarks: int | None = strawberry.field(description='Signed-in users only')
+
+
+@strawberry.type
 class CommentQuery:
+    @strawberry.field(description='Counters for the stats cards; what a viewer may not know is null')
+    async def stats(self, info: strawberry.Info[Context]) -> StatsType:
+        found = await sync_to_async(stats_for)(info.context.viewer)
+        return StatsType(comments=found.comments, ufo=found.ufo, shadowed=found.shadowed,
+                         my_comments=found.my_comments, my_bookmarks=found.my_bookmarks)
+
     @strawberry.field(description=f'Top-level comments, {PAGE_SIZE} per page')
     async def comments(
         self, info: strawberry.Info[Context], page: int = 1, sort: CommentSort = CommentSort.CREATED_AT_DESC,
