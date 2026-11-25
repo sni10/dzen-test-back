@@ -8,6 +8,8 @@ from graphql import GraphQLError
 from strawberry.django.views import AsyncGraphQLView
 from strawberry.extensions import MaxAliasesLimiter, MaxTokensLimiter, QueryDepthLimiter
 
+from accounts.graphql import AccountMutation, AccountQuery
+from accounts.models import User
 from accounts.tokens import user_from_request
 from comments.graphql.loaders import CommentLoaders
 from comments.graphql.queries import CommentQuery
@@ -24,10 +26,16 @@ class Context:
     response: HttpResponse
     viewer: Viewer
     loaders: CommentLoaders
+    user: User | None = None
 
 
 @strawberry.type
-class Query(CommentQuery):
+class Query(CommentQuery, AccountQuery):
+    pass
+
+
+@strawberry.type
+class Mutation(AccountMutation):
     pass
 
 
@@ -46,6 +54,7 @@ class Schema(strawberry.Schema):
 
 schema = Schema(
     query=Query,
+    mutation=Mutation,
     extensions=[
         QueryDepthLimiter(max_depth=MAX_DEPTH),
         MaxAliasesLimiter(max_alias_count=MAX_ALIASES),
@@ -58,4 +67,4 @@ class GraphQLView(AsyncGraphQLView):
     async def get_context(self, request: HttpRequest, response: HttpResponse) -> Context:
         user = await sync_to_async(user_from_request)(request)  # Authorization: Bearer <access token>
         viewer = Viewer.of(user, getattr(request, 'guest_key', None))
-        return Context(request=request, response=response, viewer=viewer, loaders=CommentLoaders(viewer))
+        return Context(request=request, response=response, viewer=viewer, loaders=CommentLoaders(viewer), user=user)
