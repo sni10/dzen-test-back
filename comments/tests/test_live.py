@@ -100,7 +100,6 @@ class TaskNotifiesTests(TestCase):
         self.assertEqual(notified.call_args.args[0].status, 'ready')
 
 
-@override_settings(ALLOWED_HOSTS=['testserver', 'localhost'])
 class WebSocketTests(TransactionTestCase):
     """Through the real ASGI application: origin check, cookies, groups, events.
 
@@ -121,7 +120,9 @@ class WebSocketTests(TransactionTestCase):
         isolated.enable()
         self.addCleanup(isolated.disable)
 
-    async def connect(self, origin='http://localhost', guest_key=None):
+    # The origin validator reads ALLOWED_HOSTS once, when config.asgi is imported; during tests Django always
+    # allows 'testserver' (a local .env may allow more, CI does not)
+    async def connect(self, origin='http://testserver', guest_key=None):
         headers = [(b'origin', origin.encode())]
         if guest_key:
             headers.append((b'cookie', f'{COOKIE_NAME}={guest_key}'.encode()))
