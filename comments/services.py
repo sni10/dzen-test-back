@@ -180,4 +180,8 @@ class CommentService:
                 'email': author.user.email,
                 'is_shadowed': author.user.is_shadowbanned,
             }
-        return {'guest_key': author.guest_key, 'user_name': data.user_name, 'email': data.email}
+        from moderation.models import ShadowBan  # moderation builds on comments, not the other way round
+
+        banned = ShadowBan.objects.matching_guest(author.guest_key, data.email).exists()
+        return {'guest_key': author.guest_key, 'user_name': data.user_name, 'email': data.email,
+                'is_shadowed': banned}
