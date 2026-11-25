@@ -1,6 +1,9 @@
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
+from urllib.parse import parse_qs
+
+from accounts.tokens import user_from_token
 from common.guest import COOKIE_NAME, parse_guest_key
 
 from .live import groups_for_viewer
@@ -8,11 +11,11 @@ from .viewer import Viewer
 
 
 def viewer_from_scope(scope) -> Viewer:
-    """The same identity as for HTTP: the signed-in user (session), otherwise the guest cookie."""
-    user = scope.get('user')
-    if user is not None and user.is_authenticated:
-        return Viewer(user_id=user.pk, is_moderator=user.is_moderator)
-    return Viewer(guest_key=parse_guest_key(scope.get('cookies', {}).get(COOKIE_NAME)))
+    """The same identity as for HTTP. Browsers cannot set headers on a WebSocket, so the access token comes
+    as ?token=; the guest is known by the cookie."""
+    token = parse_qs(scope.get('query_string', b'').decode()).get('token', [None])[0]
+    guest_key = parse_guest_key(scope.get('cookies', {}).get(COOKIE_NAME))
+    return Viewer.of(user_from_token(token), guest_key)
 
 
 class CommentsConsumer(AsyncJsonWebsocketConsumer):
