@@ -1,82 +1,96 @@
-# Load test: 1 000 000 comments
+# Нагрузочный тест: 1 000 000 комментариев
 
-The Middle+ requirement: a million messages and 100 000 visitors a day. 100k visitors a day is about
-1–2 new visitors a second on average; with ~10 requests per visit that is ~15 RPS on average and a few tens of
-RPS at a peak. Almost everything is reading.
+Требование уровня Middle+: миллион сообщений и 100 000 посетителей в сутки. 100 тысяч в сутки — это в среднем
+1–2 новых посетителя в секунду; при ~10 запросах за визит выходит ~12 RPS в среднем и несколько десятков RPS
+в пик. Почти всё — чтение.
 
-## Running it
+## Как запустить
 
-Against the local compose stack (`docker compose up`, the site on http://localhost:8080):
+На локальном compose-стенде (`docker compose up`, сайт на http://localhost:8080):
 
 ```bash
-# 1. Per-IP rate limits off: every simulated visitor comes from one machine. DEBUG-only, refused in production
+# 1. Отключить лимиты запросов по IP: все виртуальные посетители идут с одной машины.
+#    Работает только при DJANGO_DEBUG=true, в продакшене настройки откажутся стартовать
 echo DJANGO_THROTTLING=false >> .env && docker compose up -d app worker
 
-# 2. A million comments: ~200k threads with replies up to 6 levels deep, spread over the past year (~1.5 min)
+# 2. Миллион комментариев: ~200 тыс. веток с ответами до 6 уровней, даты за последний год (~1,5 мин)
 docker compose exec app python manage.py seed
-docker compose exec app python manage.py reindex   # search over them (~1.5 min)
+docker compose exec app python manage.py reindex   # поиск по ним (~1,5 мин)
 
-# 3. The test (Locust web UI on http://localhost:8089, or --headless as below)
+# 3. Тест (веб-интерфейс Locust на http://localhost:8089 или, как ниже, --headless)
 uv run --group loadtest locust -f loadtest/locustfile.py --host http://127.0.0.1:8080 \
     --headless -u 100 -r 20 -t 3m
 
-# Afterwards: remove the seeded rows and the posts of the test, then delete DJANGO_THROTTLING from .env
+# После: удалить сгенерированные комментарии и сообщения теста, затем убрать DJANGO_THROTTLING из .env
 docker compose exec app python manage.py seed --clear
 ```
 
-Use `127.0.0.1`, not `localhost`, on Windows: `localhost` tries IPv6 first and adds ~0.2 s to every request.
+На Windows используйте `127.0.0.1`, а не `localhost`: `localhost` сначала пробует IPv6 и добавляет ~0,2 с
+к каждому запросу.
 
-The visitors do what the SPA does, with its GraphQL queries: the first page of the feed most often, other
-sorts and nearby pages, sometimes a random deep page, threads, the stats cards, search; one action in ~30 is
-posting a comment or a reply. Posting solves the CAPTCHA by reading the answer from the local Redis — there is
-no CAPTCHA bypass in the application.
+Виртуальные посетители делают то же, что SPA, теми же GraphQL-запросами: чаще всего первая страница ленты,
+другие сортировки и соседние страницы, иногда случайная глубокая страница, ветки, карточки статистики, поиск;
+примерно одно действие из 30 — комментарий или ответ. Ответ на CAPTCHA тест читает из локального Redis —
+обхода CAPTCHA в приложении нет.
 
-## Results
+## Результаты
 
-A 16-CPU development machine, Docker Desktop, the compose stack as it is (2 uvicorn workers, MySQL 8.4 with
-default settings), 1 000 000 comments, 3 minutes per run.
+Машина разработчика с 16 ядрами на полной частоте, Docker Desktop, compose-стенд как есть (2 воркера uvicorn,
+MySQL 8.4 с настройками по умолчанию), 1 000 000 комментариев, 3 минуты на прогон. Каждый посетитель ждёт
+1–4 с между действиями, поэтому N посетителей дают примерно N / 2,6 запроса в секунду: 100 посетителей — это
+фиксированная нагрузка ~38 RPS, потолок виден начиная с 200.
 
-**100 concurrent visitors** — 39 RPS, no errors:
+| Посетителей | RPS | p50 | p95 | p99 | Ошибки |
+|---|---|---|---|---|---|
+| 100 | 38 (заданная нагрузка) | 0,13 с | 0,57 с | 0,87 с | 0 |
+| 200 | **46 (потолок)** | 1,7 с | 3,7 с | 5,1 с | 0 |
+| 300 | 45 | 4,0 с | 6,6 с | 7,4 с | 631 из 8141: MySQL `Too many connections` |
 
-| Request | Share | p50, ms | p95, ms | p99, ms |
+**100 посетителей** по видам запросов:
+
+| Запрос | Доля | p50, мс | p95, мс | p99, мс |
 |---|---|---|---|---|
-| feed: first page | 38% | 100 | 390 | 730 |
-| feed: other sort / nearby page | 15% | 130 | 520 | 830 |
-| feed: random deep page (up to page 8000) | 4% | 170 | 430 | 830 |
-| thread | 18% | 67 | 280 | 520 |
-| stats | 11% | 46 | 230 | 360 |
-| search (Elasticsearch, 1M documents) | 7% | 97 | 300 | 380 |
-| post comment / reply | 4% | 46–53 | 240–270 | 550–580 |
-| **all** | | **95** | **370** | **740** |
+| лента: первая страница | 37% | 140 | 590 | 760 |
+| лента: другая сортировка / соседняя страница | 15% | 180 | 670 | 880 |
+| лента: случайная глубокая страница (до 8000-й) | 4% | 220 | 690 | 910 |
+| ветка | 18% | 91 | 380 | 570 |
+| статистика | 11% | 75 | 350 | 530 |
+| поиск (Elasticsearch, 1 млн документов) | 7% | 120 | 340 | 530 |
+| комментарий / ответ | 4% | 63–65 | 300–400 | 430–470 |
 
-MySQL used ~26% of one CPU, the application ~143% (two processes).
+Потолок — CPU приложения (Python собирает GraphQL-ответы, два процесса на ~235%), а не база: MySQL при
+любой нагрузке занимал 30–45% одного ядра. За потолком запросы ждут в очереди; когда их одновременно ~300,
+они держат больше соединений с MySQL, чем его лимит по умолчанию 151 (Django под ASGI открывает соединение
+на каждый одновременный запрос).
 
-**200 concurrent visitors** — 43 RPS: the same throughput, latency grows (p50 2 s, p95 4.5 s), 2 of 7621
-requests answered 502. The ceiling is the application's CPU — Python building GraphQL responses in two
-processes — not the database (~36% of one CPU).
+Те же прогоны с частотой процессора, ограниченной до 10%, дали почти те же цифры: ограничивают два
+однопоточных процесса воркеров, а не частота.
 
-## What the million rows found
+## Что нашёл миллион строк
 
-The first run with a million rows answered the first page of the feed in **20 s**. Fixed here:
+Первый прогон на миллионе отдавал первую страницу ленты за **20 с**. Исправлено:
 
-| Problem | Before | After | Fix |
+| Проблема | Было | Стало | Исправление |
 |---|---|---|---|
-| Page count of the feed: `COUNT(*)` of visible threads on every request | 18 s | 0 | Counters in Redis, incremented in place by new comments (`comments/stats.py`) |
-| Stats cards recounting after every new comment | 1.3–4 s | 9 ms | The same counters; per-viewer parts are small indexed counts |
-| Deep pages (`OFFSET 199950`) | 2.4 s (by date) – 38 s (by e-mail) | 0.1–0.3 s | Deferred join: page ids from a covering index, then 25 rows (`comment_page`) |
-| Visibility filter `is_shadowed = 0 OR guest_key = …` read every row | | | Own hidden comments by id; the sort indexes carry `is_shadowed` |
-| Counters expiring under load: every request recounting a million rows at once (MySQL at ~900% CPU) | | | No expiry; the recount itself is two index-only grouped counts (~270 ms) |
-| Concurrent replies to one comment: MySQL deadlock (HTTP 500) | 1 in ~150 replies | 0 | Update the parent's counter before inserting the reply |
-| Shadow-banning a guest without a cookie matched **every** comment without one | | | Match by e-mail only when there is no cookie |
-| Guest shadow ban by e-mail: full scan | | | Index on `email` |
-| `reindex` of a million documents | ~1 h | 1.5 min | Bulk load without a refresh per batch |
+| Число страниц ленты: `COUNT(*)` видимых веток на каждый запрос | 18 с | 0 | Счётчики в Redis, новые комментарии увеличивают их на месте (`comments/stats.py`) |
+| Карточки статистики пересчитывались после каждого нового комментария | 1,3–4 с | 9 мс | Те же счётчики; личные части — маленькие запросы по индексу |
+| Глубокие страницы (`OFFSET 199950`) | 2,4 с (по дате) – 38 с (по e-mail) | 0,1–0,3 с | Отложенное соединение: id страницы из покрывающего индекса, затем только 25 строк (`comment_page`) |
+| Фильтр видимости `is_shadowed = 0 OR guest_key = …` читал каждую строку | | | Свои скрытые комментарии — по id; индексы сортировки содержат `is_shadowed` |
+| Счётчики истекали под нагрузкой: все запросы разом пересчитывали миллион строк (MySQL ~900% CPU) | | | Без срока жизни; сам пересчёт — два группирующих запроса только по индексам (~270 мс) |
+| Одновременные ответы на один комментарий: взаимная блокировка в MySQL (HTTP 500) | 1 на ~150 ответов | 0 | Счётчик родителя обновляется до вставки ответа |
+| Теневой бан гостя без cookie совпадал со **всеми** комментариями без неё | | | Без cookie — только по e-mail |
+| Теневой бан гостя по e-mail: полный перебор таблицы | | | Индекс по `email` |
+| `reindex` миллиона документов | ~1 ч | 1,5 мин | Пакетная загрузка без обновления индекса после каждой пачки |
+| Редкие 502 «connection reset by peer» между Caddy и uvicorn | 2–6 за прогон | 0 | Keep-alive uvicorn (130 с) дольше, чем у Caddy (2 мин): Caddy больше не отправляет запрос в соединение, которое uvicorn только что закрыл |
 
-## Conclusions
+## Выводы
 
-- One local machine with the stack as shipped serves ~40 RPS with p95 under 0.4 s on a million comments —
-  more than the estimated peak of 100k visitors a day.
-- The production server is smaller (1 CPU), so its ceiling is lower: there the application's CPU is the limit
-  as well. The application is stateless (sessions are JWT, WebSocket groups and caches in Redis), so the next
-  steps are more uvicorn workers or containers behind Caddy, then caching the first page of the feed (most
-  of the traffic) in Redis.
-- MySQL is far from its limit with these indexes; a read replica is not needed at this volume.
+- 100 тысяч посетителей в сутки — это ~12 RPS в среднем и несколько десятков в пик. Стенд как есть держит
+  38 RPS с p95 до 0,6 с и до ~46 RPS на миллионе комментариев, без ошибок вплоть до потолка.
+- Продовый сервер меньше (1 ядро на приложение, MySQL, Elasticsearch и RabbitMQ): его потолок ниже и не
+  измерялся. Приложение не хранит состояния (сессии — JWT, группы WebSocket и кэши — в Redis), поэтому
+  следующие шаги — больше воркеров uvicorn или контейнеров за Caddy, затем кэш первой страницы ленты (больше
+  трети трафика) в Redis.
+- За потолком стоит ограничить число одновременно работающих запросов (или поднять `max_connections` в MySQL),
+  чтобы перегрузка проявлялась ожиданием, а не ошибками `Too many connections`.
+- MySQL с этими индексами далёк от предела; реплика для чтения на таком объёме не нужна.
