@@ -179,6 +179,7 @@ class CommentService:
                 'user_name': author.user.username,
                 'email': author.user.email,
                 'is_shadowed': author.user.is_shadowbanned,
+                'by_moderator': author.user.is_moderator,
             }
         from moderation.models import ShadowBan  # moderation builds on comments, not the other way round
 

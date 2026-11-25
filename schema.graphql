@@ -28,6 +28,9 @@ type Comment {
 
   """Text hidden by a moderator; the card stays"""
   isUfo: Boolean!
+
+  """A message from the administration"""
+  byModerator: Boolean!
   score: Int!
 
   """Direct replies visible to everyone"""

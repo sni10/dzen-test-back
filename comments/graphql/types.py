@@ -78,6 +78,7 @@ class CommentType:
     home_page: str
     text: str = strawberry.field(description='Sanitized HTML: only <a>, <code>, <i>, <strong>')
     is_ufo: bool = strawberry.field(description='Text hidden by a moderator; the card stays')
+    by_moderator: bool = strawberry.field(description='A message from the administration')
     score: int
     replies_count: int = strawberry.field(description='Direct replies visible to everyone')
     depth: int = strawberry.field(description='0 for a top-level comment')
@@ -97,6 +98,7 @@ class CommentType:
             home_page=comment.home_page,
             text='' if comment.is_ufo else comment.text,  # the hidden text never leaves the server
             is_ufo=comment.is_ufo,
+            by_moderator=comment.by_moderator,
             score=comment.score,
             replies_count=comment.replies_count,
             depth=comment.depth,
