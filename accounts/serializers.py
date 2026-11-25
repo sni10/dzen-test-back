@@ -28,6 +28,16 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
 
 
+class PasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField(max_length=64)
+    token = serializers.CharField(max_length=128)
+    password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+
+
 class MeSerializer(serializers.ModelSerializer):
     home_page = serializers.URLField(read_only=True)
     is_moderator = serializers.BooleanField(read_only=True)

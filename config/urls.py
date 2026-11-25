@@ -5,7 +5,9 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
-from accounts.views import LoginView, LogoutView, RefreshView, RegisterView
+from accounts.views import (
+    LoginView, LogoutView, PasswordResetConfirmView, PasswordResetView, RefreshView, RegisterView,
+)
 from captcha.views import CaptchaView
 from comments.views import CommentCreateView, CommentPreviewView
 from common.views import HealthView
@@ -19,6 +21,9 @@ urlpatterns = [
     path('api/auth/login/', LoginView.as_view(), name='auth-login'),
     path('api/auth/refresh/', RefreshView.as_view(), name='auth-refresh'),
     path('api/auth/logout/', LogoutView.as_view(), name='auth-logout'),
+    path('api/auth/password-reset/', PasswordResetView.as_view(), name='auth-password-reset'),
+    path('api/auth/password-reset/confirm/', PasswordResetConfirmView.as_view(),
+         name='auth-password-reset-confirm'),
     path('api/comments/', CommentCreateView.as_view(), name='comment-create'),
     path('api/comments/preview/', CommentPreviewView.as_view(), name='comment-preview'),
     # No CSRF cookie dance: the SPA lives on another subdomain, mutations will authenticate with a JWT in the
