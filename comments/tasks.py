@@ -3,6 +3,7 @@ import logging
 from celery import shared_task
 
 from .attachments import processor_for
+from .live import ChannelsNotifier
 from .models import Attachment
 
 logger = logging.getLogger(__name__)
@@ -21,3 +22,4 @@ def process_attachment(attachment_id: int) -> None:
         logger.exception('Attachment %s could not be processed', attachment_id)
         attachment.status = Attachment.Status.FAILED
     attachment.save()
+    ChannelsNotifier().attachment_updated(attachment)  # the SPA swaps the placeholder for the image

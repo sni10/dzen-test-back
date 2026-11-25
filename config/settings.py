@@ -89,6 +89,14 @@ DATABASES = {
 
 REDIS_URL = ENV.redis.url
 
+# WebSocket groups (Channels) live in Redis, so the web process and Celery workers reach every connection
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {'hosts': [ENV.redis.url]},
+    },
+}
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
