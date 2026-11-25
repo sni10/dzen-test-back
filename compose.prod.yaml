@@ -1,0 +1,126 @@
+# Production stack on the VPS (1 vCPU, 4 GB): images built by GitHub Actions, nothing is built here.
+# Deployed by deploy/deploy.sh, which sets BACK_TAG / FRONT_TAG (commit SHAs) in the server's .env.
+# Secrets and the site address live in that .env (see .env.production.example).
+x-backend: &backend
+  image: ghcr.io/sni10/dzen-test-back:${BACK_TAG:?set by deploy.sh}
+  env_file: .env
+  environment:
+    DB_HOST: db
+    DB_PORT: "3306"
+    REDIS_URL: redis://redis:6379/0
+    RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672//
+  volumes:
+    - media:/app/media
+  restart: unless-stopped
+
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=256M  # the default 128M is small, the whole box has 4 GB
+      - --performance-schema=OFF        # saves ~200 MB
+    volumes:
+      - mysqldata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    mem_limit: 700m
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 128m
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4.1-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    mem_limit: 384m
+    restart: unless-stopped
+
+  app:
+    <<: *backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 512m
+
+  worker:
+    <<: *backend
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672//
+      RUN_MIGRATIONS: "0"
+    command: ["celery", "-A", "config", "worker", "--loglevel", "info", "--concurrency", "2"]
+    healthcheck:  # answers only when connected to the broker; the image's own check probes HTTP
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME --timeout 10"]
+      interval: 60s
+      timeout: 20s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      app:
+        condition: service_healthy
+    mem_limit: 512m
+
+  front:
+    image: ghcr.io/sni10/dzen-test-front:${FRONT_TAG:?set by deploy.sh}
+    mem_limit: 64m
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?e.g. comments.1-2-3-4.sslip.io}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - media:/srv/media:ro
+      - caddy_data:/data  # certificates: keep them, Let's Encrypt limits re-issuing
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+      front:
+        condition: service_started
+    mem_limit: 128m
+    restart: unless-stopped
+
+volumes:
+  mysqldata:
+  rabbitmqdata:
+  media:
+  caddy_data:
+  caddy_config:

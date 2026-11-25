@@ -102,6 +102,7 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - media:/srv/media:ro  # attachments are served by Caddy, as in production
     depends_on:
       app:
         condition: service_healthy

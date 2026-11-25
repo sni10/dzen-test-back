@@ -93,7 +93,9 @@ REDIS_URL = ENV.redis.url
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {'hosts': [ENV.redis.url]},
+        # A consumer waits for messages with a blocking Redis read of 5 s (channels_redis brpop_timeout);
+        # redis-py 8 times socket reads out after 5 s by default, which drops idle sockets. Read longer.
+        'CONFIG': {'hosts': [{'address': ENV.redis.url, 'socket_timeout': 15}]},
     },
 }
 
