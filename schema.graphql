@@ -138,6 +138,9 @@ type Mutation {
 }
 
 type Query {
+  """Full-text search (Russian and English word forms), 25 per page"""
+  search(query: String!, page: Int! = 1): SearchPage!
+
   """Counters for the stats cards; what a viewer may not know is null"""
   stats: StatsType!
 
@@ -173,6 +176,22 @@ type ReplyPage {
 
   """Pass as `after` to load the next replies"""
   endCursor: ID
+}
+
+type SearchHit {
+  comment: Comment!
+
+  """
+  HTML snippet of the matching text: escaped, with <mark> around the matches
+  """
+  highlight: String
+}
+
+type SearchPage {
+  items: [SearchHit!]!
+  totalCount: Int!
+  page: Int!
+  pageCount: Int!
 }
 
 type ShadowBan {

@@ -3,6 +3,8 @@
 Counters stay honest after every change: replies_count of parents and scores of comments the author voted on
 are recounted, so no number gives a hidden comment or a shadowed vote away.
 """
+from collections.abc import Callable
+
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
@@ -50,8 +52,9 @@ def recount_scores(comment_ids) -> None:
 
 
 class ModerationService:
-    def __init__(self, notifier: Notifier):
+    def __init__(self, notifier: Notifier, index_comments: Callable[[list[int]], None] = lambda ids: None):
         self.notifier = notifier
+        self.index_comments = index_comments  # queues search re-indexing (visibility changed)
 
     def _log(self, moderator: User, kind: str, **fields) -> None:
         ModerationAction.objects.create(moderator=moderator, kind=kind, **fields)
@@ -106,7 +109,8 @@ class ModerationService:
                 User.objects.filter(pk=author.pk).update(is_shadowbanned=True)
                 recount_scores(CommentVote.objects.filter(user=author).values_list('comment_id', flat=True))
             if hide_past:
-                self._set_shadowed(author_comments(ban), True)
+                changed = self._set_shadowed(author_comments(ban), True)
+                transaction.on_commit(lambda: self.index_comments(changed))
             self._log(moderator, ModerationAction.Kind.SHADOWBAN, comment=comment, shadow_ban=ban, reason=reason)
             transaction.on_commit(stats.invalidate)
         return ban
@@ -122,18 +126,21 @@ class ModerationService:
             if ban.user_id is not None:
                 User.objects.filter(pk=ban.user_id).update(is_shadowbanned=False)
                 recount_scores(CommentVote.objects.filter(user_id=ban.user_id).values_list('comment_id', flat=True))
-            self._set_shadowed(author_comments(ban), False)
+            changed = self._set_shadowed(author_comments(ban), False)
+            transaction.on_commit(lambda: self.index_comments(changed))
             self._log(moderator, ModerationAction.Kind.UNBAN, shadow_ban=ban)
             transaction.on_commit(stats.invalidate)
         return ban
 
     @staticmethod
-    def _set_shadowed(comments, shadowed: bool) -> None:
+    def _set_shadowed(comments, shadowed: bool) -> list[int]:
         changing = comments.filter(is_shadowed=not shadowed)
-        parent_ids = list(changing.values_list('parent_id', flat=True))
+        rows = list(changing.values_list('pk', 'parent_id'))
         changing.update(is_shadowed=shadowed)
-        recount_replies(parent_ids)
+        recount_replies(parent_id for _, parent_id in rows)
+        return [pk for pk, _ in rows]
 
     def _after_commit(self, comment: Comment) -> None:
         transaction.on_commit(stats.invalidate)
         transaction.on_commit(lambda: self.notifier.comment_updated(comment))
+        transaction.on_commit(lambda: self.index_comments([comment.pk]))
