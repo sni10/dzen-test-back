@@ -42,4 +42,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
     CMD python -c "import urllib.request,sys; sys.exit(urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=4).status != 200)"
 ENTRYPOINT ["sh", "./docker/entrypoint.sh"]
-CMD ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers", "--forwarded-allow-ips", "*"]
+# Keep-alive longer than Caddy's (2 min): otherwise uvicorn closes an idle connection (after 5 s by default)
+# just as Caddy reuses it, and that request gets a 502 "connection reset by peer" (seen in the load test)
+CMD ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--timeout-keep-alive", "130", "--proxy-headers", "--forwarded-allow-ips", "*"]
