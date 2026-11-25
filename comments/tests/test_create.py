@@ -25,12 +25,16 @@ class RecordingNotifier:
     def __init__(self):
         self.created = []
         self.updated = []
+        self.scores = []
 
     def comment_created(self, comment):
         self.created.append(comment)
 
     def attachment_updated(self, attachment):
         self.updated.append(attachment)
+
+    def score_changed(self, comment):
+        self.scores.append(comment.pk)
 
 
 class FakeCaptcha:

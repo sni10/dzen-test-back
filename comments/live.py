@@ -82,6 +82,8 @@ class Notifier(Protocol):
 
     def attachment_updated(self, attachment: Attachment) -> None: ...
 
+    def score_changed(self, comment: Comment) -> None: ...
+
 
 class ChannelsNotifier:
     """Sends events through the Channels layer (Redis): from the web process and from Celery workers alike."""
@@ -97,6 +99,11 @@ class ChannelsNotifier:
             'attachment': attachment_payload(attachment),
         }
         self._send(groups_for_comment(comment), payload)
+
+    def score_changed(self, comment: Comment) -> None:
+        score = Comment.objects.values_list('score', flat=True).get(pk=comment.pk)  # after the commit
+        self._send(groups_for_comment(comment), {'type': 'comment.score', 'commentId': str(comment.pk),
+                                                 'score': score})
 
     @staticmethod
     def _send(groups: list[str], payload: dict) -> None:

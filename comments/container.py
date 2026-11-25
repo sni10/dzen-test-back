@@ -4,6 +4,7 @@ from captcha.container import captcha_service
 
 from .live import ChannelsNotifier
 from .markup import CommentMarkup
+from .reactions import ReactionService
 from .services import CommentService
 from .tasks import process_attachment
 
@@ -21,3 +22,8 @@ def comment_service() -> CommentService:
 @cache
 def notifier() -> ChannelsNotifier:
     return ChannelsNotifier()
+
+
+@cache
+def reaction_service() -> ReactionService:
+    return ReactionService(notifier=notifier())
