@@ -72,7 +72,7 @@ EER-диаграмма из MySQL Workbench (все таблицы, включа
 Та же диаграмма в PNG — [db/schema.png](db/schema.png).
 
 Индексы ленты — под каждую сортировку: `(parent_id, created_at | user_name | email, id, is_shadowed)`; ветка
-читается по `(root_id, created_at, id)`. [отчёт нагрузочного теста](loadtest/README.md).
+читается по `(root_id, created_at, id)`. Почему так — в [отчёте нагрузочного теста](loadtest/README.md).
 
 ## Локальный запуск (Docker)
 
@@ -110,7 +110,7 @@ Elasticsearch. Новые и отмодерированные комментар
 **Нагрузочный тест** на миллионе комментариев (`manage.py seed`, Locust) — как запустить и результаты:
 [loadtest/README.md](loadtest/README.md).
 
-MySQL доступен на `127.0.0.1:3307` (пользователь и пароль из `.env`)
+MySQL доступен на `127.0.0.1:3307` (пользователь и пароль из `.env`).
 
 ## Git и релизы
 
