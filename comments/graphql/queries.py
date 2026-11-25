@@ -49,7 +49,7 @@ def _since(viewer: Viewer, last_id: int, limit: int) -> list[CommentType]:
 class StatsType:
     comments: int = strawberry.field(description='Comments this viewer can see')
     ufo: int = strawberry.field(description='Hidden by a moderator')
-    shadowed: int | None = strawberry.field(description="Shadow-banned authors' comments; moderators only")
+    shadowed: int = strawberry.field(description="Shadow-banned authors' comments (public on purpose)")
     my_comments: int | None = strawberry.field(description='Signed-in users only')
     my_bookmarks: int | None = strawberry.field(description='Signed-in users only')
 

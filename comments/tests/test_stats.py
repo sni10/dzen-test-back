@@ -34,12 +34,12 @@ class StatsTests(TestCase):
 
     def test_a_guest_sees_public_counts_only(self):
         self.assertEqual(stats.stats_for(Viewer.anonymous()),
-                         stats.Stats(comments=4, ufo=1, shadowed=None, my_comments=None, my_bookmarks=None))
+                         stats.Stats(comments=4, ufo=1, shadowed=2, my_comments=None, my_bookmarks=None))
 
-    def test_a_shadowed_author_counts_own_hidden_comments_but_not_the_shadow_total(self):
+    def test_a_shadowed_author_counts_own_hidden_comments(self):
         found = stats.stats_for(Viewer(guest_key=self.guest))
 
-        self.assertEqual((found.comments, found.shadowed), (5, None))
+        self.assertEqual((found.comments, found.shadowed), (5, 2))
 
     def test_a_signed_in_user_gets_own_counters(self):
         found = stats.stats_for(Viewer.of(self.user))
@@ -76,6 +76,6 @@ class StatsTests(TestCase):
                                      headers={'Authorization': f'Bearer {AccessToken.for_user(self.user)}'}).json()
 
         self.assertEqual(guest['data']['stats'],
-                         {'comments': 4, 'ufo': 1, 'shadowed': None, 'myComments': None, 'myBookmarks': None})
+                         {'comments': 4, 'ufo': 1, 'shadowed': 2, 'myComments': None, 'myBookmarks': None})
         self.assertEqual(signed_in['data']['stats'],
-                         {'comments': 4, 'ufo': 1, 'shadowed': None, 'myComments': 1, 'myBookmarks': 1})
+                         {'comments': 4, 'ufo': 1, 'shadowed': 2, 'myComments': 1, 'myBookmarks': 1})

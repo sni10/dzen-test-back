@@ -16,7 +16,7 @@ CACHE_SECONDS = 60  # a safety net: every change drops the key anyway
 class Stats:
     comments: int  # what this viewer can see
     ufo: int  # hidden by a moderator: the placeholders are public anyway
-    shadowed: int | None  # moderators only: telling anyone else would give the shadow ban away
+    shadowed: int  # public on purpose: everyone sees how many comments are under a shadow ban
     my_comments: int | None  # signed-in users
     my_bookmarks: int | None
 
@@ -52,7 +52,7 @@ def stats_for(viewer: Viewer) -> Stats:
     return Stats(
         comments=visible,
         ufo=shared['ufo'],
-        shadowed=shared['shadowed'] if viewer.is_moderator else None,
+        shadowed=shared['shadowed'],
         my_comments=Comment.objects.filter(user_id=viewer.user_id).count() if signed_in else None,
         my_bookmarks=Bookmark.objects.filter(user_id=viewer.user_id).count() if signed_in else None,
     )

@@ -192,8 +192,8 @@ type StatsType {
   """Hidden by a moderator"""
   ufo: Int!
 
-  """Shadow-banned authors' comments; moderators only"""
-  shadowed: Int
+  """Shadow-banned authors' comments (public on purpose)"""
+  shadowed: Int!
 
   """Signed-in users only"""
   myComments: Int
