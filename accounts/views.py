@@ -15,8 +15,11 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from common.guest import forget_guest
+
 from .container import auth_service, password_reset_service
 from .models import User
+
 from .serializers import (
     LoginSerializer, MeSerializer, PasswordResetConfirmSerializer, PasswordResetSerializer, RegisterSerializer,
     SessionSerializer,
@@ -42,6 +45,13 @@ def set_refresh_cookie(response, refresh: RefreshToken) -> None:
 def session_response(user: User, refresh: RefreshToken, code=status.HTTP_200_OK) -> Response:
     response = Response({'access': str(refresh.access_token), 'user': MeSerializer(user).data}, status=code)
     set_refresh_cookie(response, refresh)
+    return response
+
+
+def new_session_response(user: User, code=status.HTTP_200_OK) -> Response:
+    """Registration and sign-in: a new session, and the guest identity of this browser ends"""
+    response = session_response(user, RefreshToken.for_user(user), code)
+    forget_guest(response)
     return response
 
 
@@ -74,7 +84,7 @@ class RegisterView(APIView):
             user = auth_service().register(**serializer.validated_data)
         except AuthError as error:
             return error_response(error)
-        return session_response(user, RefreshToken.for_user(user), status.HTTP_201_CREATED)
+        return new_session_response(user, status.HTTP_201_CREATED)
 
 
 class LoginView(APIView):
@@ -90,7 +100,7 @@ class LoginView(APIView):
             user = auth_service().authenticate(**serializer.validated_data)
         except AuthError as error:
             return error_response(error)
-        return session_response(user, RefreshToken.for_user(user))
+        return new_session_response(user)
 
 
 class RefreshView(APIView):
@@ -124,6 +134,7 @@ class LogoutView(APIView):
             pass  # already expired or missing: nothing to revoke
         response = Response(status=status.HTTP_204_NO_CONTENT)
         response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
+        forget_guest(response)
         return response
 
 
