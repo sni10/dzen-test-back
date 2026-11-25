@@ -9,7 +9,6 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from graphql import GraphQLError
-from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from comments.graphql.queries import comment_page
@@ -17,6 +16,7 @@ from comments.graphql.types import CommentPage
 from comments.models import Comment
 
 from .models import User
+from .password_reset import sign_out_everywhere
 from .views import set_refresh_cookie
 
 if TYPE_CHECKING:
@@ -93,9 +93,7 @@ def _change_password(user: User, old: str, new: str) -> RefreshToken:
         raise field_error('newPassword', ' '.join(error.messages)) from None
     user.set_password(new)
     user.save(update_fields=['password'])
-    # Every other session ends: their refresh tokens are revoked; this one gets a fresh token below
-    for token in OutstandingToken.objects.filter(user=user):
-        BlacklistedToken.objects.get_or_create(token=token)
+    sign_out_everywhere(user)  # every other session ends; this one gets a fresh token below
     return RefreshToken.for_user(user)
 
 

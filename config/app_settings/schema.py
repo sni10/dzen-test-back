@@ -1,6 +1,6 @@
 """Typed configuration sections. Each section reads env vars with its own prefix and validates them."""
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -90,6 +90,21 @@ class RabbitMQSettings(Section):
         return url
 
 
+class EmailSettings(Section):
+    """Account emails (password reset). Production: Brevo SMTP; locally they are printed to the log."""
+
+    model_config = SettingsConfigDict(env_prefix='EMAIL_')
+
+    backend: Literal['console', 'smtp'] = 'console'
+    host: str = 'smtp-relay.brevo.com'
+    port: Port = 587
+    user: str = ''
+    password: SecretStr = SecretStr('')
+    use_tls: bool = True
+    timeout: int = Field(10, ge=1, description='SMTP connect/send timeout, seconds')
+    sender: str = 'Comments <noreply@localhost>'
+
+
 class CorsSettings(Section):
     model_config = SettingsConfigDict(env_prefix='CORS_')
 
@@ -132,6 +147,7 @@ class AppSettings(BaseModel):
     db: DatabaseSettings
     redis: RedisSettings
     rabbitmq: RabbitMQSettings
+    email: EmailSettings
     cors: CorsSettings
     static: StaticSettings
     media: MediaSettings
