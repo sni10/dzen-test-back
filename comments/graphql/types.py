@@ -85,6 +85,8 @@ class CommentType:
     parent_id: strawberry.ID | None
     root_id: strawberry.ID | None = strawberry.field(description='The top-level comment of the thread')
     author_id: strawberry.Private[int | None]  # never in the schema
+    raw_text: strawberry.Private[str]  # the text even when hidden by a moderator: for moderators only
+    shadowed: strawberry.Private[bool]
 
     @classmethod
     def from_model(cls, comment: Comment) -> CommentType:
@@ -93,7 +95,7 @@ class CommentType:
             user_name=comment.user_name,
             email=comment.email,
             home_page=comment.home_page,
-            text=comment.text,
+            text='' if comment.is_ufo else comment.text,  # the hidden text never leaves the server
             is_ufo=comment.is_ufo,
             score=comment.score,
             replies_count=comment.replies_count,
@@ -102,7 +104,17 @@ class CommentType:
             parent_id=strawberry.ID(str(comment.parent_id)) if comment.parent_id else None,
             root_id=strawberry.ID(str(comment.root_id)) if comment.root_id else None,
             author_id=comment.user_id,
+            raw_text=comment.text,
+            shadowed=comment.is_shadowed,
         )
+
+    @strawberry.field(description='The text hidden by a moderator; moderators only, otherwise null')
+    def original_text(self, info: strawberry.Info[Context]) -> str | None:
+        return self.raw_text if self.is_ufo and info.context.viewer.is_moderator else None
+
+    @strawberry.field(description='The author is shadow-banned; moderators only, otherwise null')
+    def is_shadowed(self, info: strawberry.Info[Context]) -> bool | None:
+        return self.shadowed if info.context.viewer.is_moderator else None
 
     @strawberry.field(description='Posted by me (signed-in viewers): no voting on own comments')
     def is_mine(self, info: strawberry.Info[Context]) -> bool:

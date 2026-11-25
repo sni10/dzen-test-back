@@ -41,6 +41,12 @@ type Comment {
   """The top-level comment of the thread"""
   rootId: ID
 
+  """The text hidden by a moderator; moderators only, otherwise null"""
+  originalText: String
+
+  """The author is shadow-banned; moderators only, otherwise null"""
+  isShadowed: Boolean
+
   """Posted by me (signed-in viewers): no voting on own comments"""
   isMine: Boolean!
 
@@ -110,6 +116,22 @@ type Mutation {
 
   """Remove from my bookmarks; returns false"""
   unbookmark(commentId: ID!): Boolean!
+
+  """
+  "A UFO flew in": hide the text and attachments; the card and replies stay
+  """
+  ufoComment(commentId: ID!, reason: String! = ""): Comment!
+
+  """Show the hidden text again"""
+  restoreComment(commentId: ID!): Comment!
+
+  """
+  Shadow-ban the comment's author (account, or the guest's cookie and e-mail)
+  """
+  shadowban(commentId: ID!, hidePast: Boolean! = true, reason: String! = ""): ShadowBan!
+
+  """Lift a ban: the author's comments are visible again"""
+  unban(banId: ID!): ShadowBan!
 }
 
 type Query {
@@ -137,6 +159,9 @@ type Query {
 
   """Comments I bookmarked, the latest bookmark first, 25 per page"""
   myBookmarks(page: Int! = 1): CommentPage!
+
+  """Active shadow bans, the latest first"""
+  shadowBans: [ShadowBan!]!
 }
 
 type ReplyPage {
@@ -145,6 +170,19 @@ type ReplyPage {
 
   """Pass as `after` to load the next replies"""
   endCursor: ID
+}
+
+type ShadowBan {
+  id: ID!
+  userName: String!
+  email: String!
+  isGuest: Boolean!
+  reason: String!
+  createdAt: DateTime!
+  liftedAt: DateTime
+
+  """The author's comments hidden by the ban"""
+  commentsCount: Int!
 }
 
 type StatsType {

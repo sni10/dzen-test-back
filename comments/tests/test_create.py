@@ -26,6 +26,7 @@ class RecordingNotifier:
         self.created = []
         self.updated = []
         self.scores = []
+        self.changed = []
 
     def comment_created(self, comment):
         self.created.append(comment)
@@ -35,6 +36,9 @@ class RecordingNotifier:
 
     def score_changed(self, comment):
         self.scores.append(comment.pk)
+
+    def comment_updated(self, comment):
+        self.changed.append(comment)
 
 
 class FakeCaptcha:

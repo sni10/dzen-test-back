@@ -15,6 +15,7 @@ from comments.graphql.loaders import CommentLoaders
 from comments.graphql.queries import CommentQuery
 from comments.graphql.reactions import ReactionMutation, ReactionQuery
 from comments.viewer import Viewer
+from moderation.graphql import ModerationMutation, ModerationQuery
 
 MAX_DEPTH = 10  # comments > items > replies > items > replies ... ~4 levels of replies in one query
 MAX_ALIASES = 15
@@ -31,12 +32,12 @@ class Context:
 
 
 @strawberry.type
-class Query(CommentQuery, AccountQuery, ReactionQuery):
+class Query(CommentQuery, AccountQuery, ReactionQuery, ModerationQuery):
     pass
 
 
 @strawberry.type
-class Mutation(AccountMutation, ReactionMutation):
+class Mutation(AccountMutation, ReactionMutation, ModerationMutation):
     pass
 
 
