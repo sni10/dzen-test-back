@@ -88,11 +88,13 @@ class CommentService:
         captcha: CaptchaService,
         process_attachment: Callable[[int], None],
         notifier: Notifier,
+        index_comments: Callable[[list[int]], None] = lambda ids: None,
     ):
         self.markup = markup
         self.captcha = captcha
         self.process_attachment = process_attachment  # queues background work (a Celery task)
         self.notifier = notifier  # live updates over WebSocket
+        self.index_comments = index_comments  # queues search indexing (a Celery task)
 
     def preview(self, text: str) -> str:
         """The text exactly as `create` would store it; nothing is saved and no CAPTCHA is spent."""
@@ -130,6 +132,7 @@ class CommentService:
                     transaction.on_commit(lambda: self.process_attachment(attachment.pk))
             transaction.on_commit(stats.invalidate)
             transaction.on_commit(lambda: self.notifier.comment_created(comment))
+            transaction.on_commit(lambda: self.index_comments([comment.pk]))
         return comment
 
     @staticmethod

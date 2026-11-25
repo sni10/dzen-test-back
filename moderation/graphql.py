@@ -11,6 +11,7 @@ from graphql import GraphQLError
 
 from accounts.graphql import signed_in
 from comments.container import notifier
+from comments.tasks import index_comments
 from comments.graphql.types import CommentType, parse_id
 from comments.models import Comment
 
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 
 @cache
 def moderation_service() -> ModerationService:
-    return ModerationService(notifier=notifier())
+    return ModerationService(notifier=notifier(), index_comments=index_comments.delay)
 
 
 def moderator(info: strawberry.Info[Context]):
