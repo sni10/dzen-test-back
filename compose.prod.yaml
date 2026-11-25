@@ -9,6 +9,7 @@ x-backend: &backend
     DB_PORT: "3306"
     REDIS_URL: redis://redis:6379/0
     RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672//
+    ELASTICSEARCH_URL: http://elasticsearch:9200
   volumes:
     - media:/app/media
   restart: unless-stopped
@@ -61,6 +62,22 @@ services:
     mem_limit: 384m
     restart: unless-stopped
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.1
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"  # not published: reachable only inside the compose network
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    mem_limit: 1g
+    restart: unless-stopped
+
   app:
     <<: *backend
     depends_on:
@@ -69,6 +86,8 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     mem_limit: 512m
 
@@ -79,6 +98,7 @@ services:
       DB_PORT: "3306"
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672//
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       RUN_MIGRATIONS: "0"
     command: ["celery", "-A", "config", "worker", "--loglevel", "info", "--concurrency", "2"]
     healthcheck:  # answers only when connected to the broker; the image's own check probes HTTP
@@ -121,6 +141,7 @@ services:
 volumes:
   mysqldata:
   rabbitmqdata:
+  esdata:
   media:
   caddy_data:
   caddy_config:

@@ -183,6 +183,9 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
 }
 
+ELASTICSEARCH_URL = ENV.elasticsearch.url
+ELASTICSEARCH_INDEX = ENV.elasticsearch.index
+
 CAPTCHA_LENGTH = 5
 CAPTCHA_TTL = 300  # seconds; each CAPTCHA is also single-use
 
@@ -204,4 +207,6 @@ LOGGING = {
     'disable_existing_loggers': False,
     'handlers': {'console': {'class': 'logging.StreamHandler'}},
     'root': {'handlers': ['console'], 'level': 'INFO'},
+    # The search client logs every HTTP request at INFO: only problems are interesting
+    'loggers': {'elastic_transport': {'level': 'WARNING'}},
 }
