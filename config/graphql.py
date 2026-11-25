@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import strawberry
 from asgiref.sync import sync_to_async
+from cross_web import HTTPException  # what Strawberry turns into an HTTP error response
 from django.http import HttpRequest, HttpResponse
 from graphql import GraphQLError
 from strawberry.django.views import AsyncGraphQLView
@@ -66,6 +67,13 @@ schema = Schema(
 
 
 class GraphQLView(AsyncGraphQLView):
+    def decode_json(self, data):
+        # A body that is not UTF-8 (a Windows console sending cp1251) is the client's error: 400, not 500
+        try:
+            return super().decode_json(data)
+        except UnicodeDecodeError as error:
+            raise HTTPException(400, 'The request body must be UTF-8 JSON') from error
+
     async def get_context(self, request: HttpRequest, response: HttpResponse) -> Context:
         user = await sync_to_async(user_from_request)(request)  # Authorization: Bearer <access token>
         viewer = Viewer.of(user, getattr(request, 'guest_key', None))
