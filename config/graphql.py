@@ -13,6 +13,7 @@ from accounts.models import User
 from accounts.tokens import user_from_request
 from comments.graphql.loaders import CommentLoaders
 from comments.graphql.queries import CommentQuery
+from comments.graphql.reactions import ReactionMutation, ReactionQuery
 from comments.viewer import Viewer
 
 MAX_DEPTH = 10  # comments > items > replies > items > replies ... ~4 levels of replies in one query
@@ -30,12 +31,12 @@ class Context:
 
 
 @strawberry.type
-class Query(CommentQuery, AccountQuery):
+class Query(CommentQuery, AccountQuery, ReactionQuery):
     pass
 
 
 @strawberry.type
-class Mutation(AccountMutation):
+class Mutation(AccountMutation, ReactionMutation):
     pass
 
 

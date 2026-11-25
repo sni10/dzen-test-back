@@ -84,6 +84,7 @@ class CommentType:
     created_at: datetime
     parent_id: strawberry.ID | None
     root_id: strawberry.ID | None = strawberry.field(description='The top-level comment of the thread')
+    author_id: strawberry.Private[int | None]  # never in the schema
 
     @classmethod
     def from_model(cls, comment: Comment) -> CommentType:
@@ -100,7 +101,24 @@ class CommentType:
             created_at=comment.created_at,
             parent_id=strawberry.ID(str(comment.parent_id)) if comment.parent_id else None,
             root_id=strawberry.ID(str(comment.root_id)) if comment.root_id else None,
+            author_id=comment.user_id,
         )
+
+    @strawberry.field(description='Posted by me (signed-in viewers): no voting on own comments')
+    def is_mine(self, info: strawberry.Info[Context]) -> bool:
+        return self.author_id is not None and self.author_id == info.context.viewer.user_id
+
+    @strawberry.field(description='My vote: 1, -1 or null (always null for guests)')
+    async def my_vote(self, info: strawberry.Info[Context]) -> int | None:
+        if info.context.viewer.user_id is None:
+            return None
+        return await info.context.loaders.my_votes.load(int(self.id))
+
+    @strawberry.field(description='In my bookmarks (always false for guests)')
+    async def bookmarked(self, info: strawberry.Info[Context]) -> bool:
+        if info.context.viewer.user_id is None:
+            return False
+        return await info.context.loaders.bookmarked.load(int(self.id))
 
     @strawberry.field(description='Files attached to the comment (at most one at the moment)')
     async def attachments(self, info: strawberry.Info[Context]) -> list[AttachmentType]:

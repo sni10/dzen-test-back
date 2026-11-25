@@ -6,7 +6,7 @@ from typing import NamedTuple
 from asgiref.sync import sync_to_async
 from strawberry.dataloader import DataLoader
 
-from comments.models import Attachment, Comment
+from comments.models import Attachment, Bookmark, Comment, CommentVote
 from comments.viewer import Viewer
 
 
@@ -29,11 +29,26 @@ class CommentLoaders:
     by_id: DataLoader[int, Comment | None] = field(init=False)
     replies: DataLoader[RepliesKey, RepliesSlice] = field(init=False)
     attachments: DataLoader[int, list[Attachment]] = field(init=False)
+    my_votes: DataLoader[int, int | None] = field(init=False)
+    bookmarked: DataLoader[int, bool] = field(init=False)
 
     def __post_init__(self):
         self.by_id = DataLoader(load_fn=self._load_by_id)
         self.replies = DataLoader(load_fn=self._load_replies)
         self.attachments = DataLoader(load_fn=self._load_attachments)
+        self.my_votes = DataLoader(load_fn=self._load_my_votes)
+        self.bookmarked = DataLoader(load_fn=self._load_bookmarked)
+
+    async def _load_my_votes(self, comment_ids: list[int]) -> list[int | None]:
+        """The viewer's own vote on each comment (only asked for signed-in viewers)."""
+        votes = await sync_to_async(lambda: dict(CommentVote.objects.filter(
+            user_id=self.viewer.user_id, comment_id__in=comment_ids).values_list('comment_id', 'value')))()
+        return [votes.get(pk) for pk in comment_ids]
+
+    async def _load_bookmarked(self, comment_ids: list[int]) -> list[bool]:
+        marked = await sync_to_async(lambda: set(Bookmark.objects.filter(
+            user_id=self.viewer.user_id, comment_id__in=comment_ids).values_list('comment_id', flat=True)))()
+        return [pk in marked for pk in comment_ids]
 
     async def _load_attachments(self, comment_ids: list[int]) -> list[list[Attachment]]:
         return await sync_to_async(self._attachments)(comment_ids)

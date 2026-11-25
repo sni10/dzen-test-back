@@ -41,6 +41,15 @@ type Comment {
   """The top-level comment of the thread"""
   rootId: ID
 
+  """Posted by me (signed-in viewers): no voting on own comments"""
+  isMine: Boolean!
+
+  """My vote: 1, -1 or null (always null for guests)"""
+  myVote: Int
+
+  """In my bookmarks (always false for guests)"""
+  bookmarked: Boolean!
+
   """Files attached to the comment (at most one at the moment)"""
   attachments: [Attachment!]!
 
@@ -89,6 +98,18 @@ type Mutation {
 
   """Signs out every other session; returns a new access token for this one"""
   changePassword(oldPassword: String!, newPassword: String!): String!
+
+  """Vote 1 or -1; voting again the other way changes the vote"""
+  vote(commentId: ID!, value: Int!): VoteResult!
+
+  """Take my vote back"""
+  unvote(commentId: ID!): VoteResult!
+
+  """Add to my bookmarks; returns true"""
+  bookmark(commentId: ID!): Boolean!
+
+  """Remove from my bookmarks; returns false"""
+  unbookmark(commentId: ID!): Boolean!
 }
 
 type Query {
@@ -110,6 +131,9 @@ type Query {
   My comments and replies, newest first, 25 per page (shadowed ones included)
   """
   myComments(page: Int! = 1): CommentPage!
+
+  """Comments I bookmarked, the latest bookmark first, 25 per page"""
+  myBookmarks(page: Int! = 1): CommentPage!
 }
 
 type ReplyPage {
@@ -118,4 +142,12 @@ type ReplyPage {
 
   """Pass as `after` to load the next replies"""
   endCursor: ID
+}
+
+type VoteResult {
+  commentId: ID!
+  score: Int!
+
+  """1, -1 or null after taking the vote back"""
+  myVote: Int
 }
