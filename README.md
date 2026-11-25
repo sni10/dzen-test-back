@@ -18,6 +18,7 @@ Celery + RabbitMQ, Elasticsearch, JWT, Caddy, Docker.
 | REST API: схема OpenAPI | https://comments.185-233-44-60.sslip.io/api/schema/ |
 | GraphQL (в браузере — GraphiQL) | https://comments.185-233-44-60.sslip.io/graphql |
 | GraphQL-схема | [schema.graphql](schema.graphql) |
+| Схема БД (MySQL) | [db/schema.sql](db/schema.sql), модель MySQL Workbench — [db/schema.mwb](db/schema.mwb) |
 | Состояние сервиса | https://comments.185-233-44-60.sslip.io/api/health/ |
 | Нагрузочный тест | [loadtest/README.md](loadtest/README.md) |
 
@@ -55,9 +56,135 @@ curl -s -c jar -b jar https://comments.185-233-44-60.sslip.io/api/captcha/
 # {"key": "...", "image": "data:image/png;base64,..."} — текст с картинки вводится в captcha_answer
 curl -s -c jar -b jar https://comments.185-233-44-60.sslip.io/api/comments/ \
   -H 'Content-Type: application/json' \
-  -d '{"user_name": "Anonym", "email": "anonym@example.com", "text": "Привет, <strong>мир</strong>",
+  -d '{"user_name": "Anonym", "email": "anonym@example.com", "text": "Hello, <strong>world</strong>",
        "captcha_key": "<key>", "captcha_answer": "<текст с картинки>"}'
 ```
+
+## Схема БД
+
+MySQL 8.4, InnoDB, utf8mb4. Полная схема со всеми индексами — [db/schema.sql](db/schema.sql), модель
+MySQL Workbench — [db/schema.mwb](db/schema.mwb).
+
+EER-диаграмма из MySQL Workbench (все таблицы, включая служебные таблицы Django):
+
+![Схема БД из MySQL Workbench](db/schema.png)
+
+Таблицы приложения со смыслом полей (без служебных таблиц Django — прав, сессий, журнала админки):
+
+```mermaid
+erDiagram
+    accounts_user ||--o{ comments_comment : "пишет"
+    comments_comment ||--o{ comments_comment : "parent: ответы"
+    comments_comment ||--o{ comments_comment : "root: вся ветка"
+    comments_comment ||--o{ comments_attachment : "вложения"
+    comments_comment ||--o{ comments_commentvote : "голоса"
+    accounts_user ||--o{ comments_commentvote : "голосует"
+    comments_comment ||--o{ comments_bookmark : "в закладках"
+    accounts_user ||--o{ comments_bookmark : "хранит"
+    accounts_user ||--o{ moderation_shadowban : "забанен (user)"
+    accounts_user ||--o{ moderation_shadowban : "забанил (created_by)"
+    moderation_shadowban ||--o{ moderation_moderationaction : "журнал бана"
+    comments_comment ||--o{ moderation_moderationaction : "журнал НЛО"
+    accounts_user ||--o{ moderation_moderationaction : "модератор"
+    accounts_user ||--o{ token_blacklist_outstandingtoken : "refresh-токены"
+    token_blacklist_outstandingtoken ||--o| token_blacklist_blacklistedtoken : "отозван"
+
+    accounts_user {
+        bigint id PK
+        varchar username UK "50, латиница и цифры"
+        varchar email UK
+        varchar home_page
+        varchar password "хеш"
+        varchar role "user | admin"
+        bool is_shadowbanned "зеркало активного бана"
+        bool is_active
+        bool is_superuser
+        datetime date_joined
+    }
+    comments_comment {
+        bigint id PK
+        bigint parent_id FK "NULL — заглавный"
+        bigint root_id FK "корень ветки, NULL у заглавного"
+        smallint depth
+        bigint user_id FK "NULL — гость"
+        char guest_key "cookie гостя"
+        varchar user_name "снимок на момент записи"
+        varchar email
+        varchar home_page
+        longtext text "очищенный HTML"
+        bool is_ufo "текст скрыт модератором"
+        bool is_shadowed "теневой бан автора"
+        bool by_moderator "сообщение администрации"
+        int replies_count "денормализовано"
+        int score "денормализовано"
+        char ip
+        varchar user_agent
+        datetime created_at
+    }
+    comments_attachment {
+        bigint id PK
+        bigint comment_id FK
+        varchar kind "image | text"
+        varchar file
+        varchar original_name
+        int size
+        smallint width
+        smallint height
+        varchar status "processing | ready | failed"
+        datetime created_at
+    }
+    comments_commentvote {
+        bigint id PK
+        bigint comment_id FK "UK вместе с user_id"
+        bigint user_id FK
+        smallint value "+1 | -1"
+        datetime created_at
+        datetime updated_at
+    }
+    comments_bookmark {
+        bigint id PK
+        bigint user_id FK "UK вместе с comment_id"
+        bigint comment_id FK
+        datetime created_at
+    }
+    moderation_shadowban {
+        bigint id PK
+        bigint user_id FK "зарегистрированный"
+        char guest_key "или гость: cookie"
+        varchar email "и e-mail"
+        varchar user_name
+        varchar reason
+        bigint created_by_id FK
+        datetime created_at
+        datetime lifted_at "NULL — активен"
+    }
+    moderation_moderationaction {
+        bigint id PK
+        varchar kind "ufo | restore | shadowban | unban"
+        bigint comment_id FK
+        bigint shadow_ban_id FK
+        bigint moderator_id FK
+        longtext original_text
+        varchar reason
+        datetime created_at
+    }
+    token_blacklist_outstandingtoken {
+        bigint id PK
+        bigint user_id FK
+        varchar jti UK
+        longtext token
+        datetime created_at
+        datetime expires_at
+    }
+    token_blacklist_blacklistedtoken {
+        bigint id PK
+        bigint token_id FK, UK
+        datetime blacklisted_at
+    }
+```
+
+Индексы ленты — под каждую сортировку: `(parent_id, created_at | user_name | email, id, is_shadowed)`; ветка
+читается по `(root_id, created_at, id)`. Почему так — в [отчёте нагрузочного теста](loadtest/README.md).
 
 ## Локальный запуск (Docker)
 
