@@ -149,8 +149,27 @@ REST_FRAMEWORK = {
         'auth_register': '5/min',
         'auth_login': '10/min',
         'auth_refresh': '30/min',
+        'auth_password_reset': '5/min',
+        'auth_password_reset_confirm': '10/min',
     },
 }
+
+# Mail: Brevo SMTP in production (EMAIL_* in the server's .env), printed to the log locally
+MAILERS = {
+    'default': {
+        'BACKEND': f'django.core.mail.backends.{ENV.email.backend}.EmailBackend',
+        'OPTIONS': {
+            'host': ENV.email.host,
+            'port': ENV.email.port,
+            'username': ENV.email.user,
+            'password': ENV.email.password.get_secret_value(),
+            'use_tls': ENV.email.use_tls,
+            'timeout': ENV.email.timeout,
+        } if ENV.email.backend == 'smtp' else {},
+    },
+}
+DEFAULT_FROM_EMAIL = ENV.email.sender
+PASSWORD_RESET_TIMEOUT = 3600  # the reset link works for one hour (and only once: the token dies with the old password)
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
