@@ -4,7 +4,7 @@ Backend for the "Comments" SPA test assignment: tree comments with CAPTCHA, file
 live updates over WebSocket, moderation, search.
 
 Stack: Python 3.14, Django 6, DRF, Strawberry GraphQL, Channels (WebSocket), MySQL 8.4, Redis,
-Celery + RabbitMQ, Caddy, Docker. Coming with the next features: Elasticsearch, JWT.
+Celery + RabbitMQ, Elasticsearch, JWT, Caddy, Docker.
 Frontend: [dzen-test-front](https://github.com/sni10/dzen-test-front) (Vue 3).
 
 > Work in progress.
@@ -40,6 +40,10 @@ http://localhost:15673 (`dzen` / `dzen`).
 
 Administrator: `docker compose exec app python manage.py createsuperuser`.
 
+**Search** (GraphQL `search(query)`, Russian and English word forms, highlighted matches) runs on Elasticsearch.
+New and moderated comments are indexed by the worker; to (re)build the whole index — on a new server or after a
+mapping change: `docker compose exec app python manage.py reindex`.
+
 ## Development without the app container
 
 MySQL and Redis in Docker, Django on the host ([uv](https://docs.astral.sh/uv/)):
@@ -63,3 +67,6 @@ MySQL is published on `127.0.0.1:3307` (user/password from `.env`) — MySQL Wor
 - CI (`.github/workflows/ci.yml`): commit lint + tests on MySQL for every push and pull request to `main`/`dev`;
   on push to `main` — automatic semantic version tag `vX.Y.Z`, GitHub Release and the Docker image
   `ghcr.io/sni10/dzen-test-back:<sha>` / `:vX.Y.Z`.
+- On the server the RabbitMQ management UI listens on the server's own `127.0.0.1:15672` only. Open it through an
+  SSH tunnel: `ssh -L 15672:127.0.0.1:15672 deploy@<server>`, then http://localhost:15672 with `RABBITMQ_USER` /
+  `RABBITMQ_PASSWORD` from the server's `.env`.

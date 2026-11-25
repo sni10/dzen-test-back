@@ -28,6 +28,9 @@ type Comment {
 
   """Text hidden by a moderator; the card stays"""
   isUfo: Boolean!
+
+  """A message from the administration"""
+  byModerator: Boolean!
   score: Int!
 
   """Direct replies visible to everyone"""
@@ -40,6 +43,21 @@ type Comment {
 
   """The top-level comment of the thread"""
   rootId: ID
+
+  """The text hidden by a moderator; moderators only, otherwise null"""
+  originalText: String
+
+  """The author is shadow-banned; moderators only, otherwise null"""
+  isShadowed: Boolean
+
+  """Posted by me (signed-in viewers): no voting on own comments"""
+  isMine: Boolean!
+
+  """My vote: 1, -1 or null (always null for guests)"""
+  myVote: Int
+
+  """In my bookmarks (always false for guests)"""
+  bookmarked: Boolean!
 
   """Files attached to the comment (at most one at the moment)"""
   attachments: [Attachment!]!
@@ -89,9 +107,43 @@ type Mutation {
 
   """Signs out every other session; returns a new access token for this one"""
   changePassword(oldPassword: String!, newPassword: String!): String!
+
+  """Vote 1 or -1; voting again the other way changes the vote"""
+  vote(commentId: ID!, value: Int!): VoteResult!
+
+  """Take my vote back"""
+  unvote(commentId: ID!): VoteResult!
+
+  """Add to my bookmarks; returns true"""
+  bookmark(commentId: ID!): Boolean!
+
+  """Remove from my bookmarks; returns false"""
+  unbookmark(commentId: ID!): Boolean!
+
+  """
+  "A UFO flew in": hide the text and attachments; the card and replies stay
+  """
+  ufoComment(commentId: ID!, reason: String! = ""): Comment!
+
+  """Show the hidden text again"""
+  restoreComment(commentId: ID!): Comment!
+
+  """
+  Shadow-ban the comment's author (account, or the guest's cookie and e-mail)
+  """
+  shadowban(commentId: ID!, hidePast: Boolean! = true, reason: String! = ""): ShadowBan!
+
+  """Lift a ban: the author's comments are visible again"""
+  unban(banId: ID!): ShadowBan!
 }
 
 type Query {
+  """Full-text search (Russian and English word forms), 25 per page"""
+  search(query: String!, page: Int! = 1): SearchPage!
+
+  """Counters for the stats cards; what a viewer may not know is null"""
+  stats: StatsType!
+
   """Top-level comments, 25 per page"""
   comments(page: Int! = 1, sort: CommentSort! = CREATED_AT_DESC): CommentPage!
 
@@ -110,6 +162,12 @@ type Query {
   My comments and replies, newest first, 25 per page (shadowed ones included)
   """
   myComments(page: Int! = 1): CommentPage!
+
+  """Comments I bookmarked, the latest bookmark first, 25 per page"""
+  myBookmarks(page: Int! = 1): CommentPage!
+
+  """Active shadow bans, the latest first"""
+  shadowBans: [ShadowBan!]!
 }
 
 type ReplyPage {
@@ -118,4 +176,58 @@ type ReplyPage {
 
   """Pass as `after` to load the next replies"""
   endCursor: ID
+}
+
+type SearchHit {
+  comment: Comment!
+
+  """
+  HTML snippet of the matching text: escaped, with <mark> around the matches
+  """
+  highlight: String
+}
+
+type SearchPage {
+  items: [SearchHit!]!
+  totalCount: Int!
+  page: Int!
+  pageCount: Int!
+}
+
+type ShadowBan {
+  id: ID!
+  userName: String!
+  email: String!
+  isGuest: Boolean!
+  reason: String!
+  createdAt: DateTime!
+  liftedAt: DateTime
+
+  """The author's comments hidden by the ban"""
+  commentsCount: Int!
+}
+
+type StatsType {
+  """Comments this viewer can see"""
+  comments: Int!
+
+  """Hidden by a moderator"""
+  ufo: Int!
+
+  """Shadow-banned authors' comments (public on purpose)"""
+  shadowed: Int!
+
+  """Signed-in users only"""
+  myComments: Int
+
+  """Signed-in users only"""
+  myBookmarks: Int
+}
+
+type VoteResult {
+  commentId: ID!
+  score: Int!
+
+  """1, -1 or null after taking the vote back"""
+  myVote: Int
 }

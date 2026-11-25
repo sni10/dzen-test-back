@@ -1,10 +1,11 @@
 import logging
 
 from celery import shared_task
+from elasticsearch import ConnectionError as ApiConnectionError
 
 from .attachments import processor_for
 from .live import ChannelsNotifier
-from .models import Attachment
+from .models import Attachment, Comment
 
 logger = logging.getLogger(__name__)
 
@@ -23,3 +24,16 @@ def process_attachment(attachment_id: int) -> None:
         attachment.status = Attachment.Status.FAILED
     attachment.save()
     ChannelsNotifier().attachment_updated(attachment)  # the SPA swaps the placeholder for the image
+
+
+@shared_task(autoretry_for=(ConnectionError, ApiConnectionError), retry_backoff=True, max_retries=5)
+def index_comments(comment_ids: list[int]) -> None:
+    """Bring the search index in line with the database for these comments (saved, changed or deleted)."""
+    from .container import search_index
+
+    found = list(Comment.objects.filter(pk__in=comment_ids))
+    index = search_index()
+    if found:
+        index.save(found)
+    if missing := set(comment_ids) - {comment.pk for comment in found}:
+        index.remove(sorted(missing))

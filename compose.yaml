@@ -50,6 +50,23 @@ services:
       retries: 10
     restart: unless-stopped
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.1
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"  # reachable only inside the compose network (and 127.0.0.1)
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "127.0.0.1:9201:9200"  # `uv run` on the host
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s'"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+    restart: unless-stopped
+
   app:
     build: .
     env_file: .env
@@ -59,6 +76,7 @@ services:
       DB_PORT: "3306"
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://dzen:dzen@rabbitmq:5672//
+      ELASTICSEARCH_URL: http://elasticsearch:9200
     volumes:
       - media:/app/media
     ports:
@@ -81,6 +99,7 @@ services:
       DB_PORT: "3306"
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://dzen:dzen@rabbitmq:5672//
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       RUN_MIGRATIONS: "0"
     command: ["celery", "-A", "config", "worker", "--loglevel", "info", "--concurrency", "2"]
     volumes:
@@ -112,4 +131,5 @@ services:
 
 volumes:
   mysqldata:
+  esdata:
   media:

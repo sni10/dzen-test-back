@@ -11,6 +11,7 @@ from accounts.models import User
 from captcha.service import CaptchaService
 
 from .attachments import AttachmentRejected, CheckedUpload, inspect_upload
+from . import stats
 from .live import Notifier
 from .markup import CommentMarkup, MarkupError
 from .models import Attachment, Comment
@@ -87,11 +88,13 @@ class CommentService:
         captcha: CaptchaService,
         process_attachment: Callable[[int], None],
         notifier: Notifier,
+        index_comments: Callable[[list[int]], None] = lambda ids: None,
     ):
         self.markup = markup
         self.captcha = captcha
         self.process_attachment = process_attachment  # queues background work (a Celery task)
         self.notifier = notifier  # live updates over WebSocket
+        self.index_comments = index_comments  # queues search indexing (a Celery task)
 
     def preview(self, text: str) -> str:
         """The text exactly as `create` would store it; nothing is saved and no CAPTCHA is spent."""
@@ -127,7 +130,9 @@ class CommentService:
                 attachment = self._attach(comment, data.attachment, checked)
                 if checked.needs_processing:
                     transaction.on_commit(lambda: self.process_attachment(attachment.pk))
+            transaction.on_commit(stats.invalidate)
             transaction.on_commit(lambda: self.notifier.comment_created(comment))
+            transaction.on_commit(lambda: self.index_comments([comment.pk]))
         return comment
 
     @staticmethod
@@ -177,5 +182,10 @@ class CommentService:
                 'user_name': author.user.username,
                 'email': author.user.email,
                 'is_shadowed': author.user.is_shadowbanned,
+                'by_moderator': author.user.is_moderator,
             }
-        return {'guest_key': author.guest_key, 'user_name': data.user_name, 'email': data.email}
+        from moderation.models import ShadowBan  # moderation builds on comments, not the other way round
+
+        banned = ShadowBan.objects.matching_guest(author.guest_key, data.email).exists()
+        return {'guest_key': author.guest_key, 'user_name': data.user_name, 'email': data.email,
+                'is_shadowed': banned}

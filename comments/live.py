@@ -63,15 +63,17 @@ def comment_payload(comment: Comment) -> dict:
         'userName': comment.user_name,
         'email': comment.email,
         'homePage': comment.home_page,
-        'text': comment.text,
+        'text': '' if comment.is_ufo else comment.text,  # the hidden text never leaves the server
         'isUfo': comment.is_ufo,
+        'byModerator': comment.by_moderator,
         'score': comment.score,
         'repliesCount': comment.replies_count,
         'depth': comment.depth,
         'createdAt': comment.created_at.isoformat(),
         'parentId': str(comment.parent_id) if comment.parent_id else None,
         'rootId': str(comment.root_id) if comment.root_id else None,
-        'parent': {'id': str(parent.pk), 'userName': parent.user_name, 'text': parent.text} if parent else None,
+        'parent': {'id': str(parent.pk), 'userName': parent.user_name,
+                   'text': '' if parent.is_ufo else parent.text} if parent else None,
         'attachments': [] if comment.is_ufo else [attachment_payload(a) for a in comment.attachments.all()],
         'replies': {'items': [], 'hasMore': False, 'endCursor': None},
     }
@@ -81,6 +83,10 @@ class Notifier(Protocol):
     def comment_created(self, comment: Comment) -> None: ...
 
     def attachment_updated(self, attachment: Attachment) -> None: ...
+
+    def score_changed(self, comment: Comment) -> None: ...
+
+    def comment_updated(self, comment: Comment) -> None: ...
 
 
 class ChannelsNotifier:
@@ -97,6 +103,15 @@ class ChannelsNotifier:
             'attachment': attachment_payload(attachment),
         }
         self._send(groups_for_comment(comment), payload)
+
+    def comment_updated(self, comment: Comment) -> None:
+        """Hidden by a moderator or restored: every open page swaps the card."""
+        self._send(groups_for_comment(comment), {'type': 'comment.updated', 'comment': comment_payload(comment)})
+
+    def score_changed(self, comment: Comment) -> None:
+        score = Comment.objects.values_list('score', flat=True).get(pk=comment.pk)  # after the commit
+        self._send(groups_for_comment(comment), {'type': 'comment.score', 'commentId': str(comment.pk),
+                                                 'score': score})
 
     @staticmethod
     def _send(groups: list[str], payload: dict) -> None:

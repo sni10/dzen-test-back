@@ -90,6 +90,15 @@ class RabbitMQSettings(Section):
         return url
 
 
+class ElasticsearchSettings(Section):
+    """Full-text search over comments."""
+
+    model_config = SettingsConfigDict(env_prefix='ELASTICSEARCH_')
+
+    url: str = 'http://elasticsearch:9200'
+    index: str = 'comments'
+
+
 class EmailSettings(Section):
     """Account emails (password reset). Production: Brevo SMTP; locally they are printed to the log."""
 
@@ -148,6 +157,7 @@ class AppSettings(BaseModel):
     redis: RedisSettings
     rabbitmq: RabbitMQSettings
     email: EmailSettings
+    elasticsearch: ElasticsearchSettings
     cors: CorsSettings
     static: StaticSettings
     media: MediaSettings

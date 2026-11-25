@@ -43,6 +43,15 @@ class GuestKeyMiddleware:
         return response
 
 
+def forget_guest(response) -> None:
+    """Signing in or out ends the guest identity of this browser: the next request gets a new one.
+
+    Otherwise, after signing out, the browser would again be the guest who wrote here before and would see
+    that guest's shadow-banned comments — confusing when a moderator banned that guest from the same browser.
+    """
+    response.delete_cookie(COOKIE_NAME, samesite='Lax')
+
+
 def client_ip(request) -> str | None:
     """uvicorn --proxy-headers already puts the real client address (from Caddy's X-Forwarded-For) here."""
     return request.META.get('REMOTE_ADDR') or None

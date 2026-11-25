@@ -1,5 +1,6 @@
 """Django settings. All environment-specific values come from env vars / .env, validated in config/app_settings."""
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -16,6 +17,10 @@ ALLOWED_HOSTS = ENV.django.allowed_hosts
 # Behind Caddy, which sets X-Forwarded-Proto itself
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = not DEBUG
+
+# Tests create many users: a fast hasher instead of the deliberately slow PBKDF2 (never used outside tests)
+if 'test' in sys.argv[1:2]:
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 # CI sets TEST_REPORTS_DIR: tests also write a JUnit report there (unittest-xml-reporting, a dev dependency)
 if os.environ.get('TEST_REPORTS_DIR'):
@@ -38,6 +43,7 @@ INSTALLED_APPS = [
     'accounts',
     'comments',
     'captcha',
+    'moderation',
 ]
 
 MIDDLEWARE = [
@@ -177,6 +183,9 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
 }
 
+ELASTICSEARCH_URL = ENV.elasticsearch.url
+ELASTICSEARCH_INDEX = ENV.elasticsearch.index
+
 CAPTCHA_LENGTH = 5
 CAPTCHA_TTL = 300  # seconds; each CAPTCHA is also single-use
 
@@ -198,4 +207,6 @@ LOGGING = {
     'disable_existing_loggers': False,
     'handlers': {'console': {'class': 'logging.StreamHandler'}},
     'root': {'handlers': ['console'], 'level': 'INFO'},
+    # The search client logs every HTTP request at INFO: only problems are interesting
+    'loggers': {'elastic_transport': {'level': 'WARNING'}},
 }
