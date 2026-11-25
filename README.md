@@ -1,6 +1,6 @@
 # dzen-test-back
 
-Бэкенд тестового задания «SPA-комментарии»: древовидные комментарии с CAPTCHA, вложения, обновления
+Бэкенд «SPA-комментарии»: древовидные комментарии с CAPTCHA, вложения, обновления
 в реальном времени по WebSocket, модерация, поиск.
 
 Стек: Python 3.14, Django 6, DRF, Strawberry GraphQL, Channels (WebSocket), MySQL 8.4, Redis,
@@ -67,124 +67,12 @@ MySQL Workbench — [db/schema.mwb](db/schema.mwb).
 
 EER-диаграмма из MySQL Workbench (все таблицы, включая служебные таблицы Django):
 
-![Схема БД из MySQL Workbench](db/schema.png)
+![Схема БД из MySQL Workbench](db/schema.svg)
 
-Таблицы приложения со смыслом полей (без служебных таблиц Django — прав, сессий, журнала админки):
-
-```mermaid
-erDiagram
-    accounts_user ||--o{ comments_comment : "пишет"
-    comments_comment ||--o{ comments_comment : "parent: ответы"
-    comments_comment ||--o{ comments_comment : "root: вся ветка"
-    comments_comment ||--o{ comments_attachment : "вложения"
-    comments_comment ||--o{ comments_commentvote : "голоса"
-    accounts_user ||--o{ comments_commentvote : "голосует"
-    comments_comment ||--o{ comments_bookmark : "в закладках"
-    accounts_user ||--o{ comments_bookmark : "хранит"
-    accounts_user ||--o{ moderation_shadowban : "забанен (user)"
-    accounts_user ||--o{ moderation_shadowban : "забанил (created_by)"
-    moderation_shadowban ||--o{ moderation_moderationaction : "журнал бана"
-    comments_comment ||--o{ moderation_moderationaction : "журнал НЛО"
-    accounts_user ||--o{ moderation_moderationaction : "модератор"
-    accounts_user ||--o{ token_blacklist_outstandingtoken : "refresh-токены"
-    token_blacklist_outstandingtoken ||--o| token_blacklist_blacklistedtoken : "отозван"
-
-    accounts_user {
-        bigint id PK
-        varchar username UK "50, латиница и цифры"
-        varchar email UK
-        varchar home_page
-        varchar password "хеш"
-        varchar role "user | admin"
-        bool is_shadowbanned "зеркало активного бана"
-        bool is_active
-        bool is_superuser
-        datetime date_joined
-    }
-    comments_comment {
-        bigint id PK
-        bigint parent_id FK "NULL — заглавный"
-        bigint root_id FK "корень ветки, NULL у заглавного"
-        smallint depth
-        bigint user_id FK "NULL — гость"
-        char guest_key "cookie гостя"
-        varchar user_name "снимок на момент записи"
-        varchar email
-        varchar home_page
-        longtext text "очищенный HTML"
-        bool is_ufo "текст скрыт модератором"
-        bool is_shadowed "теневой бан автора"
-        bool by_moderator "сообщение администрации"
-        int replies_count "денормализовано"
-        int score "денормализовано"
-        char ip
-        varchar user_agent
-        datetime created_at
-    }
-    comments_attachment {
-        bigint id PK
-        bigint comment_id FK
-        varchar kind "image | text"
-        varchar file
-        varchar original_name
-        int size
-        smallint width
-        smallint height
-        varchar status "processing | ready | failed"
-        datetime created_at
-    }
-    comments_commentvote {
-        bigint id PK
-        bigint comment_id FK "UK вместе с user_id"
-        bigint user_id FK
-        smallint value "+1 | -1"
-        datetime created_at
-        datetime updated_at
-    }
-    comments_bookmark {
-        bigint id PK
-        bigint user_id FK "UK вместе с comment_id"
-        bigint comment_id FK
-        datetime created_at
-    }
-    moderation_shadowban {
-        bigint id PK
-        bigint user_id FK "зарегистрированный"
-        char guest_key "или гость: cookie"
-        varchar email "и e-mail"
-        varchar user_name
-        varchar reason
-        bigint created_by_id FK
-        datetime created_at
-        datetime lifted_at "NULL — активен"
-    }
-    moderation_moderationaction {
-        bigint id PK
-        varchar kind "ufo | restore | shadowban | unban"
-        bigint comment_id FK
-        bigint shadow_ban_id FK
-        bigint moderator_id FK
-        longtext original_text
-        varchar reason
-        datetime created_at
-    }
-    token_blacklist_outstandingtoken {
-        bigint id PK
-        bigint user_id FK
-        varchar jti UK
-        longtext token
-        datetime created_at
-        datetime expires_at
-    }
-    token_blacklist_blacklistedtoken {
-        bigint id PK
-        bigint token_id FK, UK
-        datetime blacklisted_at
-    }
-```
+Та же диаграмма в PNG — [db/schema.png](db/schema.png).
 
 Индексы ленты — под каждую сортировку: `(parent_id, created_at | user_name | email, id, is_shadowed)`; ветка
-читается по `(root_id, created_at, id)`. Почему так — в [отчёте нагрузочного теста](loadtest/README.md).
+читается по `(root_id, created_at, id)`. [отчёт нагрузочного теста](loadtest/README.md).
 
 ## Локальный запуск (Docker)
 
@@ -209,8 +97,6 @@ docker compose up --build
 | `/media/...`, `/admin/`, `/static/...` | Django |
 | всё остальное | SPA (nginx из dzen-test-front) |
 
-Django также доступен на http://localhost:8000 (для прокси `npm run dev` во фронтенде).
-
 Фоновая работа идёт в контейнере `worker` (Celery через RabbitMQ): прикреплённое изображение сначала
 сохраняется (`status: processing`), затем вписывается в 320×240 и пересохраняется (`ready`). Интерфейс
 RabbitMQ: http://localhost:15673 (`dzen` / `dzen`).
@@ -224,21 +110,7 @@ Elasticsearch. Новые и отмодерированные комментар
 **Нагрузочный тест** на миллионе комментариев (`manage.py seed`, Locust) — как запустить и результаты:
 [loadtest/README.md](loadtest/README.md).
 
-## Разработка без контейнера приложения
-
-MySQL, Redis, RabbitMQ и Elasticsearch в Docker, Django на хосте ([uv](https://docs.astral.sh/uv/)):
-
-```bash
-cp .env.example .env
-docker compose up -d db redis rabbitmq elasticsearch
-uv sync
-uv run python manage.py migrate
-uv run python manage.py runserver
-uv run celery -A config worker --pool solo --loglevel info   # фоновые задачи (в другом терминале)
-uv run python manage.py test
-```
-
-MySQL доступен на `127.0.0.1:3307` (пользователь и пароль из `.env`) — туда подключается MySQL Workbench.
+MySQL доступен на `127.0.0.1:3307` (пользователь и пароль из `.env`)
 
 ## Git и релизы
 
