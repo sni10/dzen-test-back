@@ -72,6 +72,25 @@ enum CommentSort {
 """Date with time (isoformat)"""
 scalar DateTime
 
+type Me {
+  id: ID!
+  username: String!
+  email: String!
+  homePage: String!
+  isModerator: Boolean!
+
+  """Everything I posted, replies included"""
+  commentsCount: Int!
+}
+
+type Mutation {
+  """Home page shown with my comments; an empty string clears it"""
+  updateProfile(homePage: String!): Me!
+
+  """Signs out every other session; returns a new access token for this one"""
+  changePassword(oldPassword: String!, newPassword: String!): String!
+}
+
 type Query {
   """Top-level comments, 25 per page"""
   comments(page: Int! = 1, sort: CommentSort! = CREATED_AT_DESC): CommentPage!
@@ -83,6 +102,14 @@ type Query {
   Comments posted after lastId, oldest first (after a WebSocket reconnect); limit <= 100
   """
   commentsSince(lastId: ID!, limit: Int! = 100): [Comment!]!
+
+  """The signed-in user; null for guests"""
+  me: Me
+
+  """
+  My comments and replies, newest first, 25 per page (shadowed ones included)
+  """
+  myComments(page: Int! = 1): CommentPage!
 }
 
 type ReplyPage {

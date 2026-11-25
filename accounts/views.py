@@ -15,17 +15,19 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .container import auth_service
+from .container import auth_service, password_reset_service
 from .models import User
-from .serializers import LoginSerializer, MeSerializer, RegisterSerializer, SessionSerializer
+from .serializers import (
+    LoginSerializer, MeSerializer, PasswordResetConfirmSerializer, PasswordResetSerializer, RegisterSerializer,
+    SessionSerializer,
+)
 from .services import AuthError
 
 REFRESH_COOKIE = 'refresh_token'
 REFRESH_COOKIE_PATH = '/api/auth/'
 
 
-def session_response(user: User, refresh: RefreshToken, code=status.HTTP_200_OK) -> Response:
-    response = Response({'access': str(refresh.access_token), 'user': MeSerializer(user).data}, status=code)
+def set_refresh_cookie(response, refresh: RefreshToken) -> None:
     response.set_cookie(
         REFRESH_COOKIE,
         str(refresh),
@@ -35,6 +37,11 @@ def session_response(user: User, refresh: RefreshToken, code=status.HTTP_200_OK)
         secure=not settings.DEBUG,
         samesite='Lax',
     )
+
+
+def session_response(user: User, refresh: RefreshToken, code=status.HTTP_200_OK) -> Response:
+    response = Response({'access': str(refresh.access_token), 'user': MeSerializer(user).data}, status=code)
+    set_refresh_cookie(response, refresh)
     return response
 
 
@@ -118,3 +125,38 @@ class LogoutView(APIView):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
         return response
+
+
+class PasswordResetView(APIView):
+    """E-mail a one-hour reset link. The same answer whether or not the address has an account."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth_password_reset'
+
+    @extend_schema(request=PasswordResetSerializer, responses={202: None})
+    def post(self, request):
+        serializer = PasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # The link leads to the SPA on this same origin (Caddy routes /reset-password to the front)
+        password_reset_service().request(serializer.validated_data['email'],
+                                         request.build_absolute_uri('/reset-password'))
+        return Response({'detail': 'If an account uses this e-mail, a link is on its way'},
+                        status=status.HTTP_202_ACCEPTED)
+
+
+class PasswordResetConfirmView(APIView):
+    """Set a new password from the link; signs out every session and signs this browser in."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth_password_reset_confirm'
+
+    @extend_schema(request=PasswordResetConfirmSerializer, responses={200: SessionSerializer, 400: OpenApiResponse(
+        description='{"token": [...]} for a bad or used link, {"password": [...]} for a weak password')})
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user = password_reset_service().confirm(**serializer.validated_data)
+        except AuthError as error:
+            return error_response(error)
+        return session_response(user, RefreshToken.for_user(user))
