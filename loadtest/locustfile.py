@@ -50,7 +50,6 @@ STATS = 'query { stats { comments ufo shadowed myComments myBookmarks } }'
 
 captchas = redis.Redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6380/0'))
 page_count = 1  # learnt from the first feed answer
-seen_ids: list[str] = []  # threads to open, collected from the feeds
 
 
 @events.test_start.add_listener
@@ -65,6 +64,8 @@ class Visitor(HttpUser):
 
     def on_start(self):
         self.client.headers['User-Agent'] = USER_AGENT
+        # Comments this visitor has seen: per visitor, as visibility is (a shadow-banned author sees own posts)
+        self.seen_ids: list[str] = []
 
     def gql(self, name, query, variables=None):
         with self.client.post('/graphql', json={'query': query, 'variables': variables or {}}, name=name,
@@ -92,13 +93,13 @@ class Visitor(HttpUser):
         data = self.gql(name, FEED, {'page': page, 'sort': sort, 'first': REPLIES_PAGE})
         if data:
             page_count = data['comments']['pageCount']
-            seen_ids.extend(item['id'] for item in data['comments']['items'][:5])
-            del seen_ids[:-500]
+            self.seen_ids.extend(item['id'] for item in data['comments']['items'][:5])
+            del self.seen_ids[:-100]
 
     @task(5)
     def thread(self):
-        if seen_ids:
-            self.gql('thread', THREAD, {'id': random.choice(seen_ids), 'first': REPLIES_PAGE})
+        if self.seen_ids:
+            self.gql('thread', THREAD, {'id': random.choice(self.seen_ids), 'first': REPLIES_PAGE})
 
     @task(3)
     def stats(self):
@@ -112,9 +113,11 @@ class Visitor(HttpUser):
     def post(self):
         key = self.client.get('/api/captcha/', name='captcha').json()['key']
         answer = captchas.get(f'captcha:{key}')
-        reply_to = random.choice(seen_ids) if seen_ids and random.random() < 0.6 else None
-        self.client.post('/api/comments/', name='post comment' + (' (reply)' if reply_to else ''), json={
+        reply_to = random.choice(self.seen_ids) if self.seen_ids and random.random() < 0.6 else None
+        with self.client.post('/api/comments/', name='post comment' + (' (reply)' if reply_to else ''), json={
             'user_name': 'Locust', 'email': 'locust@example.com', 'parent': reply_to,
             'text': f'Load test <strong>{random.choice(WORDS)}</strong> {random.random():.6f}',
             'captcha_key': key, 'captcha_answer': answer.decode() if answer else '',
-        })
+        }, catch_response=True) as response:
+            if response.status_code == 400:
+                response.failure(f'400 {response.text[:200]}')  # the reason, not just the code
