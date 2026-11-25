@@ -1,5 +1,6 @@
 """Django settings. All environment-specific values come from env vars / .env, validated in config/app_settings."""
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from .app_settings import load_settings
@@ -30,6 +31,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'corsheaders',
     'common',
@@ -134,7 +136,8 @@ CORS_ALLOW_CREDENTIALS = True  # the guest_key cookie travels with fetch(..., {c
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_AUTHENTICATION_CLASSES': [],  # JWT comes with the auth feature
+    # The API trusts only the Bearer token, never the session cookie (no CSRF surface); sessions are for /admin
+    'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
     'UNAUTHENTICATED_USER': None,
@@ -143,7 +146,16 @@ REST_FRAMEWORK = {
         'captcha': '30/min',
         'comment_create': '10/min',
         'comment_preview': '60/min',
+        'auth_register': '5/min',
+        'auth_login': '10/min',
+        'auth_refresh': '30/min',
     },
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'UPDATE_LAST_LOGIN': True,
 }
 
 CAPTCHA_LENGTH = 5
