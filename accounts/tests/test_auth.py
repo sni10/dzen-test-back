@@ -15,6 +15,7 @@ from accounts.views import REFRESH_COOKIE
 from comments.live import ChannelsNotifier
 from comments.tests.factories import make_comment
 from comments.tests.test_create import FakeCaptcha
+from common.guest import COOKIE_NAME as GUEST_COOKIE
 from config.asgi import application
 
 PASSWORD = 'correct-horse-battery-9'
@@ -132,6 +133,26 @@ class LoginLogoutRefreshTests(AuthApiTestCase):
                 response = self.login(login, password)
                 self.assertEqual(response.status_code, 400)
                 self.assertEqual(response.json(), {'non_field_errors': ['Wrong name, e-mail or password']})
+
+    def test_signing_in_and_out_ends_the_guest_identity(self):
+        """After signing out the browser is a new guest, not the one who wrote here (and may be shadow-banned)"""
+        self.client.get(reverse('captcha'))  # any request: the guest cookie is issued
+        guest = self.client.cookies[GUEST_COOKIE].value
+
+        self.login()
+        self.assertEqual(self.client.cookies[GUEST_COOKIE].value, '')  # dropped
+        self.post('auth-logout')
+
+        self.assertNotIn(self.client.cookies[GUEST_COOKIE].value, ('', guest))  # a new guest from now on
+
+    def test_a_refresh_keeps_the_guest_cookie(self):
+        self.login()
+        self.client.get(reverse('captcha'))
+        guest = self.client.cookies[GUEST_COOKIE].value
+
+        self.post('auth-refresh')
+
+        self.assertEqual(self.client.cookies[GUEST_COOKIE].value, guest)
 
     def test_refresh_rotates_the_cookie_and_the_old_one_stops_working(self):
         self.login()
