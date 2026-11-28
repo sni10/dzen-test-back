@@ -40,8 +40,11 @@ class CommentCreateSerializer(serializers.Serializer):
     text = text_field()
     parent = serializers.IntegerField(required=False, allow_null=True, default=None, min_value=1,
                                       help_text='Id of the comment this one replies to')
-    captcha_key = serializers.CharField(max_length=64)
-    captcha_answer = serializers.CharField(max_length=10)
+    # Guests only: a signed-in author passed a CAPTCHA when registering
+    captcha_key = serializers.CharField(max_length=64, required=False, allow_blank=True, default='',
+                                        help_text='Guests only, from GET /api/captcha/')
+    captcha_answer = serializers.CharField(max_length=10, required=False, allow_blank=True, default='',
+                                           help_text='Guests only: the characters from the CAPTCHA picture')
     attachment = serializers.FileField(
         required=False, allow_null=True, default=None, max_length=255,
         help_text='Optional: a JPG / GIF / PNG image (fitted into 320x240) or a TXT file up to 100 KB. '

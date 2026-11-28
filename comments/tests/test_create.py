@@ -4,6 +4,7 @@ from unittest import mock
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
+from rest_framework_simplejwt.tokens import AccessToken
 
 from accounts.models import User
 from captcha.generator import CaptchaGenerator
@@ -160,12 +161,18 @@ class CommentServiceTests(TestCase):
         root.refresh_from_db()
         self.assertEqual(root.replies_count, 0)
 
-    def test_moderator_needs_no_captcha(self):
-        admin = User.objects.create_user('mod', 'mod@example.com', 'a-long-password-1', role=User.Role.ADMIN)
+    def test_signed_in_authors_need_no_captcha(self):
+        for user in (
+            User.objects.create_user('mod', 'mod@example.com', 'a-long-password-1', role=User.Role.ADMIN),
+            User.objects.create_user('member', 'member@example.com', 'a-long-password-1'),
+        ):
+            with self.subTest(user=user.username):
+                comment = self.service.create(self.data(captcha_key='', captcha_answer=''), Author(user=user))
+                self.assertEqual(comment.user, user)
 
-        comment = self.service.create(self.data(captcha_key='', captcha_answer=''), Author(user=admin))
-
-        self.assertEqual(comment.user, admin)
+    def test_guest_needs_a_captcha(self):
+        with self.assertRaises(CaptchaInvalid):
+            self.service.create(self.data(captcha_key='', captcha_answer=''), self.guest)
 
 
 class CommentCreateApiTests(TestCase):
@@ -239,7 +246,6 @@ class CommentCreateApiTests(TestCase):
             'email': ['', 'not-an-email', 'a@'],
             'home_page': ['example.com', 'ftp://example.com', 'javascript:alert(1)'],
             'text': ['', '   ', 'x' * 5001],
-            'captcha_answer': [''],
             'parent': ['abc', 0],
         }
         for field, values in cases.items():
@@ -262,6 +268,27 @@ class CommentCreateApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn('captcha', response.json())
+
+    def test_guest_without_captcha_is_refused(self):
+        payload = self.payload()
+        del payload['captcha_key'], payload['captcha_answer']
+
+        response = self.client.post(self.url, payload, content_type='application/json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('captcha', response.json())
+        self.assertFalse(Comment.objects.exists())
+
+    def test_signed_in_user_posts_without_captcha(self):
+        user = User.objects.create_user('member', 'member@example.com', 'a-long-password-1')
+        payload = self.payload()
+        del payload['captcha_key'], payload['captcha_answer']
+
+        response = self.client.post(self.url, payload, content_type='application/json',
+                                    headers={'Authorization': f'Bearer {AccessToken.for_user(user)}'})
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Comment.objects.get().user, user)
 
     def test_unknown_parent(self):
         response = self.post(parent=999999)
