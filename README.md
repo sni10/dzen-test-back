@@ -67,7 +67,8 @@ curl -s https://comments.185-233-44-60.sslip.io/api/health/   # {"status":"ok","
 ```
 
 Публикация комментария (REST): получить CAPTCHA, затем отправить форму с её ключом и текстом с картинки.
-Cookie нужна: по ней гость узнаётся как автор.
+Cookie нужна: по ней гость узнаётся как автор. CAPTCHA нужна только гостям: вошедший пользователь (заголовок
+`Authorization: Bearer`) уже прошёл её при регистрации.
 
 ```bash
 curl -s -c jar -b jar https://comments.185-233-44-60.sslip.io/api/captcha/

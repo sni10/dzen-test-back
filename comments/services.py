@@ -104,13 +104,14 @@ class CommentService:
         """Validate markup, parent and attachment first, then spend the CAPTCHA, then save.
 
         The CAPTCHA is checked last so a typo in the text or a wrong file does not cost a new CAPTCHA.
-        Moderators post without a CAPTCHA. An image is resized in the background after the commit.
+        Only guests need a CAPTCHA: a signed-in author passed one when registering. An image is resized in the
+        background after the commit.
         """
         text = self._clean(data.text)
         parent = self._parent(data.parent_id, author.viewer)
         checked = self._inspect(data.attachment)
 
-        if not author.viewer.is_moderator and not self.captcha.verify(data.captcha_key, data.captcha_answer):
+        if author.user is None and not self.captcha.verify(data.captcha_key, data.captcha_answer):
             raise CaptchaInvalid('Wrong or expired CAPTCHA, enter the new one')
 
         comment = Comment(
