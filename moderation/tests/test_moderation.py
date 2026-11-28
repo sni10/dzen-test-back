@@ -105,10 +105,23 @@ class ShadowBanTests(ServiceTestCase):
         author = make_user('Spammer')
         old = make_comment(user=author)
 
-        self.service.shadowban(self.moderator, old.pk, hide_past=False)
+        ban = self.service.shadowban(self.moderator, old.pk, hide_past=False)
 
         old.refresh_from_db()
         self.assertFalse(old.is_shadowed)
+        self.assertEqual(ban.changed_comment_ids, [])
+
+    def test_ban_and_unban_report_every_changed_comment(self):
+        """The page marks all of the author's comments, not only the one the moderator clicked"""
+        author = make_user('Spammer')
+        first, second = make_comment(user=author), make_comment(user=author)
+        make_comment()  # someone else's
+
+        ban = self.service.shadowban(self.moderator, first.pk)
+        self.assertCountEqual(ban.changed_comment_ids, [first.pk, second.pk])
+
+        lifted = self.service.unban(self.moderator, ban.pk)
+        self.assertCountEqual(lifted.changed_comment_ids, [first.pk, second.pk])
 
     def test_a_banned_guest_is_recognised_by_cookie_or_email(self):
         key = uuid.uuid4()
@@ -211,15 +224,16 @@ class GraphQLTests(TestCase):
     def test_ban_list_and_unban(self):
         authored = make_comment(user=self.user)
         ban = self.gql('mutation($id: ID!) { shadowban(commentId: $id, reason: "spam") { id userName isGuest '
-                       'commentsCount } }', {'id': authored.pk}, self.moderator)['data']['shadowban']
+                       'commentsCount commentIds } }', {'id': authored.pk}, self.moderator)['data']['shadowban']
 
-        self.assertEqual({k: ban[k] for k in ('userName', 'isGuest', 'commentsCount')},
-                         {'userName': 'Rum8', 'isGuest': False, 'commentsCount': 1})
-        self.assertEqual([b['id'] for b in self.gql('{ shadowBans { id } }', user=self.moderator)['data']['shadowBans']],
-                         [ban['id']])
-        lifted = self.gql('mutation($id: ID!) { unban(banId: $id) { liftedAt } }', {'id': ban['id']},
+        self.assertEqual({k: ban[k] for k in ('userName', 'isGuest', 'commentsCount', 'commentIds')},
+                         {'userName': 'Rum8', 'isGuest': False, 'commentsCount': 1, 'commentIds': [str(authored.pk)]})
+        self.assertEqual(self.gql('{ shadowBans { id commentIds } }', user=self.moderator)['data']['shadowBans'],
+                         [{'id': ban['id'], 'commentIds': []}])
+        lifted = self.gql('mutation($id: ID!) { unban(banId: $id) { liftedAt commentIds } }', {'id': ban['id']},
                           self.moderator)['data']['unban']
         self.assertIsNotNone(lifted['liftedAt'])
+        self.assertEqual(lifted['commentIds'], [str(authored.pk)])
         self.assertEqual(self.gql('{ shadowBans { id } }', user=self.moderator)['data']['shadowBans'], [])
 
     def test_errors_come_back_readable(self):

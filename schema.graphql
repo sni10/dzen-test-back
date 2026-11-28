@@ -205,6 +205,11 @@ type ShadowBan {
 
   """The author's comments hidden by the ban"""
   commentsCount: Int!
+
+  """
+  shadowban / unban only: the comments this call hid or showed again, to update them on the page
+  """
+  commentIds: [ID!]!
 }
 
 type StatsType {

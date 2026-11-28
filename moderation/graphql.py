@@ -51,6 +51,8 @@ class ShadowBanType:
     created_at: datetime
     lifted_at: datetime | None
     comments_count: int = strawberry.field(description="The author's comments hidden by the ban")
+    comment_ids: list[strawberry.ID] = strawberry.field(
+        description='shadowban / unban only: the comments this call hid or showed again, to update them on the page')
 
     @classmethod
     def from_model(cls, ban: ShadowBan) -> ShadowBanType:
@@ -63,6 +65,7 @@ class ShadowBanType:
             created_at=ban.created_at,
             lifted_at=ban.lifted_at,
             comments_count=author_comments(ban).filter(is_shadowed=True).count(),
+            comment_ids=[strawberry.ID(str(pk)) for pk in getattr(ban, 'changed_comment_ids', [])],
         )
 
 
