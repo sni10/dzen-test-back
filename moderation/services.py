@@ -84,7 +84,10 @@ class ModerationService:
         return comment
 
     def shadowban(self, moderator: User, comment_id: int, hide_past: bool = True, reason: str = '') -> ShadowBan:
-        """Ban the author of a comment. New comments of theirs are shadowed; with hide_past the old ones too."""
+        """Ban the author of a comment. New comments of theirs are shadowed; with hide_past the old ones too.
+
+        `ban.changed_comment_ids` lists the comments that became shadowed, so a page can mark them all.
+        """
         with transaction.atomic():
             comment = _comment(comment_id)
             author = comment.user
@@ -97,6 +100,7 @@ class ModerationService:
             if active.exists():
                 raise ModerationError('The author is already banned')
 
+            changed: list[int] = []
             ban = ShadowBan.objects.create(
                 user=author,
                 guest_key=None if author else comment.guest_key,
@@ -113,10 +117,14 @@ class ModerationService:
                 transaction.on_commit(lambda: self.index_comments(changed))
             self._log(moderator, ModerationAction.Kind.SHADOWBAN, comment=comment, shadow_ban=ban, reason=reason)
             transaction.on_commit(stats.invalidate)
+        ban.changed_comment_ids = changed
         return ban
 
     def unban(self, moderator: User, ban_id: int) -> ShadowBan:
-        """Lift the ban: the author's comments become visible again and their votes count."""
+        """Lift the ban: the author's comments become visible again and their votes count.
+
+        `ban.changed_comment_ids` lists the comments that are visible again.
+        """
         with transaction.atomic():
             ban = ShadowBan.objects.active().filter(pk=ban_id).first()
             if ban is None:
@@ -130,6 +138,7 @@ class ModerationService:
             transaction.on_commit(lambda: self.index_comments(changed))
             self._log(moderator, ModerationAction.Kind.UNBAN, shadow_ban=ban)
             transaction.on_commit(stats.invalidate)
+        ban.changed_comment_ids = changed
         return ban
 
     @staticmethod

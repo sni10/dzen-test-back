@@ -1,5 +1,23 @@
 # dzen-test-back
 
+[![CI](https://github.com/sni10/dzen-test-back/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sni10/dzen-test-back/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/sni10/dzen-test-back?sort=semver)](https://github.com/sni10/dzen-test-back/releases)
+[![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsni10%2Fdzen-test-back%2Fbadges%2Ftests.json)](https://github.com/sni10/dzen-test-back/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsni10%2Fdzen-test-back%2Fbadges%2Fcoverage.json)](https://github.com/sni10/dzen-test-back/actions/workflows/ci.yml)
+[![Docker image](https://img.shields.io/badge/image-ghcr.io%2Fsni10%2Fdzen--test--back-2496ED?logo=docker&logoColor=white)](https://github.com/sni10/dzen-test-back/pkgs/container/dzen-test-back)
+[![Last commit](https://img.shields.io/github/last-commit/sni10/dzen-test-back)](https://github.com/sni10/dzen-test-back/commits/main)
+
+[![Python](https://img.shields.io/badge/python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/django-6.1-092E20?logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![DRF](https://img.shields.io/badge/drf-3.18-A30000)](https://www.django-rest-framework.org/)
+[![Strawberry GraphQL](https://img.shields.io/badge/strawberry_graphql-0.341-E10098?logo=graphql&logoColor=white)](https://strawberry.rocks/)
+[![MySQL](https://img.shields.io/badge/mysql-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Redis](https://img.shields.io/badge/redis-8-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+[![RabbitMQ](https://img.shields.io/badge/rabbitmq-4.1-FF6600?logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
+[![Celery](https://img.shields.io/badge/celery-5.7-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev/)
+[![Elasticsearch](https://img.shields.io/badge/elasticsearch-9.5-005571?logo=elasticsearch&logoColor=white)](https://www.elastic.co/elasticsearch)
+[![uv](https://img.shields.io/badge/uv-managed-DE5FE9?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+
 Бэкенд «SPA-комментарии»: древовидные комментарии с CAPTCHA, вложения, обновления
 в реальном времени по WebSocket, модерация, поиск.
 
@@ -49,7 +67,8 @@ curl -s https://comments.185-233-44-60.sslip.io/api/health/   # {"status":"ok","
 ```
 
 Публикация комментария (REST): получить CAPTCHA, затем отправить форму с её ключом и текстом с картинки.
-Cookie нужна: по ней гость узнаётся как автор.
+Cookie нужна: по ней гость узнаётся как автор. CAPTCHA нужна только гостям: вошедший пользователь (заголовок
+`Authorization: Bearer`) уже прошёл её при регистрации.
 
 ```bash
 curl -s -c jar -b jar https://comments.185-233-44-60.sslip.io/api/captcha/
